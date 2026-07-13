@@ -1,7 +1,9 @@
 /* =====================================================================
-   HOST (apresentador / tela grande)
-   - Cria o "quarto" no PeerJS, mostra o QR de entrada, recebe respostas
-     dos celulares, calcula pontuação por velocidade e mostra ranking.
+   HOST (aplicador / tela grande)
+   - Coordena a partida pelo BACKEND (/api/host): abre a sala, mostra o QR,
+     envia cada questão, revela, ranking, discussão e final.
+   - Acompanha os alunos por POLLING (não usa mais P2P/PeerJS), então
+     funciona em qualquer rede.
    ===================================================================== */
 (function () {
   const $  = (s, r = document) => r.querySelector(s);
@@ -9,40 +11,26 @@
   const QUIZ = window.QUIZ, C = window.QZ;
   const TOTAL = QUIZ.questoes.length;
 
+  const POLL_MS = 1500;
+
   const H = {
     room: null,
-    peer: null,
+    sessionId: null,
     phase: "lobby",
     qIndex: -1,
     time: C.DEFAULT_TIME,
-    qStartAt: 0,
     locked: false,
     timerId: null,
-    // players: Map nameKey -> {name, score, conn, online, answered}
-    players: new Map(),
-    answers: {}, // nameKey -> {letter, elapsed, points}
-    sessionId: null, // id único da partida (agrupa os registros no MongoDB)
-    startedAt: 0,
+    pollId: null,
+    ecg: null,
+    // vindos do poll do servidor:
+    standings: [],   // [{nome, score, gain, online}]
+    online: 0,
+    respondidos: 0,
   };
 
-  // Endpoint do backend (mesmo domínio; é uma rota, não um segredo).
-  const LOG_ENDPOINT = "/api/log";
-
-  // "Dispara e esquece": registra no servidor sem NUNCA travar o jogo.
-  function logToServer(payload) {
-    try {
-      fetch(LOG_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true,
-      }).catch(() => {});
-    } catch (e) {}
-  }
-
-  /* ----------------------------- Sala / Peer ----------------------------- */
+  /* ----------------------------- Sala ----------------------------- */
   function newRoomCode() {
-    // 4 dígitos, evitando começar com 0 para leitura fácil
     return String(Math.floor(1000 + (Date.now() % 9000))).slice(-4);
   }
 
@@ -51,153 +39,65 @@
     return location.origin + path + "?sala=" + H.room;
   }
 
-  function persist() {
+  /* --------------------------- Backend --------------------------- */
+  async function hostPost(action, extra) {
     try {
-      const scores = {};
-      H.players.forEach((p, k) => (scores[k] = { name: p.name, score: p.score }));
-      localStorage.setItem("qz_room", H.room);
-      localStorage.setItem("qz_scores_" + H.room, JSON.stringify(scores));
-    } catch (e) {}
-  }
-
-  function loadPersisted(room) {
-    try {
-      const raw = localStorage.getItem("qz_scores_" + room);
-      if (!raw) return;
-      const scores = JSON.parse(raw);
-      Object.keys(scores).forEach((k) => {
-        H.players.set(k, { name: scores[k].name, score: scores[k].score || 0, conn: null, online: false, answered: false });
+      const r = await fetch("/api/host", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.assign({ sala: H.room, sessionId: H.sessionId, action }, extra || {})),
       });
-    } catch (e) {}
+      return await r.json().catch(() => null);
+    } catch (e) { return null; }
   }
 
-  function startPeer() {
-    // Reaproveita a sala anterior (sobrevive a um F5 do professor)
+  async function hostGet() {
+    try {
+      const r = await fetch("/api/host?sala=" + encodeURIComponent(H.room));
+      return await r.json().catch(() => null);
+    } catch (e) { return null; }
+  }
+
+  async function startRoom() {
+    // Reaproveita sala/sessão anteriores (sobrevive a um F5 do aplicador).
     H.room = localStorage.getItem("qz_room") || newRoomCode();
-    loadPersisted(H.room);
-    createPeerWith(H.room, /*retry*/ 0);
+    H.sessionId = localStorage.getItem("qz_session") || (H.room + "-" + Date.now());
+    localStorage.setItem("qz_room", H.room);
+    localStorage.setItem("qz_session", H.sessionId);
+
+    const r = await hostPost("abrir", { sessionId: H.sessionId, totalQuestoes: TOTAL });
+    if (r && r.ok && r.sessionId) {
+      H.sessionId = r.sessionId; // o servidor manda a sessão vigente
+      localStorage.setItem("qz_session", H.sessionId);
+    }
+    renderLobbyStatic();
+    setConn(!!(r && r.ok));
+    startPolling();
   }
 
-  function createPeerWith(room, retry) {
-    const id = C.PREFIX + room;
-    const peer = new Peer(id, C.PEER_CONFIG);
-    H.peer = peer;
+  function startPolling() {
+    clearInterval(H.pollId);
+    poll();
+    H.pollId = setInterval(poll, POLL_MS);
+  }
 
-    peer.on("open", () => {
-      H.room = room;
-      persist();
-      renderLobbyStatic();
-      setConn(true);
-    });
-
-    peer.on("connection", (conn) => {
-      conn.on("data", (msg) => onPlayerMessage(conn, msg));
-      conn.on("open", () => {});
-      conn.on("close", () => markConnClosed(conn));
-      conn.on("error", () => markConnClosed(conn));
-    });
-
-    peer.on("disconnected", () => { try { peer.reconnect(); } catch (e) {} });
-
-    peer.on("error", (err) => {
-      // ID já em uso (outra aba) → tenta nova sala
-      if (err && String(err.type) === "unavailable-id" && retry < 3) {
-        try { peer.destroy(); } catch (e) {}
-        const nr = newRoomCode();
-        localStorage.removeItem("qz_scores_" + room);
-        localStorage.setItem("qz_room", nr);
-        H.players.clear();
-        createPeerWith(nr, retry + 1);
-      } else if (err && String(err.type) === "network") {
-        setConn(false);
-      } else {
-        console.warn("Peer error:", err);
-      }
-    });
+  async function poll() {
+    const s = await hostGet();
+    setConn(!!(s && s.ok));
+    if (!s || !s.ok || !s.existe) return;
+    H.standings = s.standings || [];
+    H.online = s.online || 0;
+    H.respondidos = s.respondidos || 0;
+    renderPlayers();
+    if (H.phase === "question") updateAnsweredCount();
+    if (H.phase === "ranking") renderRankingList();
   }
 
   function setConn(ok) {
     const dot = $("#conn-dot"), txt = $("#conn-text");
     if (dot) dot.classList.toggle("on", !!ok);
-    if (txt) txt.textContent = ok ? "Conectado ao servidor de salas" : "Reconectando…";
+    if (txt) txt.textContent = ok ? "Conectado ao servidor" : "Reconectando…";
   }
-
-  /* --------------------------- Jogadores --------------------------- */
-  function onPlayerMessage(conn, msg) {
-    if (!msg || typeof msg !== "object") return;
-    if (msg.type === "join") return handleJoin(conn, msg.name);
-    if (msg.type === "answer") return handleAnswer(conn, msg);
-  }
-
-  function handleJoin(conn, rawName) {
-    let name = String(rawName || "Aluno").trim().slice(0, 24) || "Aluno";
-    let key = C.normName(name);
-    const existing = H.players.get(key);
-
-    if (existing && existing.online && existing.conn && existing.conn !== conn) {
-      // nome em uso por alguém online → diferencia
-      let i = 2, nk = key;
-      while (H.players.get(nk) && H.players.get(nk).online) { name = name.replace(/\s*\(\d+\)$/, "") + " (" + i + ")"; nk = C.normName(name); i++; }
-      key = nk;
-    }
-
-    let p = H.players.get(key);
-    if (!p) p = { name, score: 0, conn, online: true, answered: false };
-    p.conn = conn; p.online = true; p.name = name;
-    conn._nameKey = key;
-    H.players.set(key, p);
-
-    send(conn, { type: "welcome", name, room: H.room });
-    syncPlayerToPhase(conn, p);
-    renderPlayers();
-    persist();
-  }
-
-  function markConnClosed(conn) {
-    const key = conn && conn._nameKey;
-    if (key && H.players.get(key)) { H.players.get(key).online = false; }
-    renderPlayers();
-  }
-
-  function syncPlayerToPhase(conn, p) {
-    // Coloca um jogador que acabou de (re)entrar no estado atual do jogo
-    if (H.phase === "question") {
-      send(conn, questionPayload());
-      if (p.answered || H.answers[conn._nameKey]) send(conn, { type: "answered", letter: (H.answers[conn._nameKey] || {}).letter });
-      if (H.locked) send(conn, { type: "locked" });
-    } else if (H.phase === "reveal" || H.phase === "ranking" || H.phase === "discussion") {
-      sendResultTo(conn, conn._nameKey);
-    } else {
-      send(conn, { type: "lobby" });
-    }
-  }
-
-  function send(conn, obj) { try { conn && conn.open && conn.send(obj); } catch (e) {} }
-  function broadcast(obj) { H.players.forEach((p) => p.online && send(p.conn, obj)); }
-
-  /* --------------------------- Respostas --------------------------- */
-  function handleAnswer(conn, msg) {
-    if (H.phase !== "question" || H.locked) return;
-    const key = conn._nameKey; if (!key) return;
-    if (H.answers[key]) return;                 // já respondeu
-    const q = QUIZ.questoes[H.qIndex];
-    const letter = String(msg.letter || "").toUpperCase();
-    if (!q.alternativas.some((a) => a.letra === letter)) return;
-
-    const elapsed = Date.now() - H.qStartAt;
-    const correct = letter === q.correta;
-    const points = C.score(correct, elapsed, H.time);
-    H.answers[key] = { letter, elapsed, points, correct };
-    const p = H.players.get(key); if (p) p.answered = true;
-
-    send(conn, { type: "answered", letter });
-    updateAnsweredCount();
-    // Trava automática quando todos os on-line já responderam
-    const online = countOnline();
-    if (online > 0 && Object.keys(H.answers).length >= online) { /* mantém aberto até o professor revelar */ }
-  }
-
-  function countOnline() { let n = 0; H.players.forEach((p) => p.online && n++); return n; }
 
   /* --------------------------- Fluxo do jogo --------------------------- */
   function show(screen) {
@@ -206,39 +106,40 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function startGame() {
+  async function startGame() {
+    // Tempo escolhido AGORA, no lobby — trava até o fim da partida.
+    H.time = parseInt($("#time-select").value, 10) || C.DEFAULT_TIME;
+    lockTimeSelect(true);
+
     H.qIndex = -1;
     H.sessionId = H.room + "-" + Date.now(); // nova partida
-    H.startedAt = Date.now();
-    // zera pontuação para novo jogo
-    H.players.forEach((p) => { p.score = 0; p.answered = false; });
+    localStorage.setItem("qz_session", H.sessionId);
+    await hostPost("iniciar", { sessionId: H.sessionId });
     nextQuestion();
   }
 
-  function nextQuestion() {
+  async function nextQuestion() {
     H.qIndex++;
     if (H.qIndex >= TOTAL) return showFinal();
     H.phase = "question";
     H.locked = false;
-    H.answers = {};
-    H.players.forEach((p) => (p.answered = false));
-    H.time = parseInt($("#time-select").value, 10) || C.DEFAULT_TIME;
-    renderQuestion();
-    broadcast(questionPayload());
-    H.qStartAt = Date.now();
-    startTimer();
-    show("question");
-  }
+    H.respondidos = 0;
 
-  function questionPayload() {
     const q = QUIZ.questoes[H.qIndex];
-    return {
-      type: "question",
-      index: H.qIndex,
-      n: q.n, total: TOTAL, tema: q.tema,
-      letters: q.alternativas.map((a) => a.letra),
-      time: H.time,
-    };
+    renderQuestion();
+    show("question");
+
+    await hostPost("questao", {
+      questao: {
+        index: H.qIndex,
+        n: q.n,
+        tema: q.tema,
+        correta: q.correta,
+        letters: q.alternativas.map((a) => a.letra),
+        time: H.time,
+      },
+    });
+    startTimer();
   }
 
   function startTimer() {
@@ -259,28 +160,21 @@
   function lockAnswers() {
     if (H.locked) return;
     H.locked = true;
-    broadcast({ type: "locked" });
     $("#secs").textContent = "0";
+    hostPost("lock");
   }
 
-  function revealAnswer() {
+  async function revealAnswer() {
     clearInterval(H.timerId);
     lockAnswers();
     H.phase = "reveal";
     const q = QUIZ.questoes[H.qIndex];
 
-    // Soma pontos ao placar
-    Object.keys(H.answers).forEach((key) => {
-      const p = H.players.get(key); if (p) p.score += H.answers[key].points;
-    });
-    persist();
+    const r = await hostPost("revelar");
+    const dist = (r && r.distribuicao) || {};
+    const totalAns = (r && r.total) || 0;
+    const nCorr = (r && r.corretas) || 0;
 
-    // Distribuição de respostas
-    const dist = {}; q.alternativas.forEach((a) => (dist[a.letra] = 0));
-    let totalAns = 0;
-    Object.values(H.answers).forEach((a) => { dist[a.letter] = (dist[a.letter] || 0) + 1; totalAns++; });
-
-    // Marca a tela do host
     $("#options").classList.add("revealed");
     $$("#options .opt").forEach((el) => {
       const l = el.dataset.l;
@@ -291,69 +185,23 @@
       $(".distbar > i", el).style.width = (totalAns ? (n / totalAns) * 100 : 0) + "%";
     });
 
-    // Envia resultado individual
-    H.players.forEach((p, key) => {
-      if (p.online) sendResultTo(p.conn, key);
-    });
-
     $("#btn-reveal").style.display = "none";
     $("#btn-ranking").style.display = "";
-    const nCorr = Object.values(H.answers).filter((a) => a.correct).length;
     $("#answered-count").innerHTML = `<b>${totalAns}</b> respostas · <b>${nCorr}</b> acertos`;
-
-    // Registra as respostas desta questão no MongoDB (via backend).
-    try {
-      const respostas = [];
-      H.players.forEach((p, key) => {
-        const a = H.answers[key];
-        if (a) respostas.push({
-          aluno: p.name, letra: a.letter, acertou: !!a.correct,
-          tempoMs: a.elapsed, pontos: a.points,
-        });
-      });
-      if (H.sessionId && respostas.length) {
-        logToServer({
-          tipo: "respostas",
-          sessionId: H.sessionId,
-          sala: H.room,
-          questao: { index: H.qIndex, n: q.n, tema: q.tema, correta: q.correta },
-          respostas,
-          enviadoEm: Date.now(),
-        });
-      }
-    } catch (e) {}
   }
 
-  function sendResultTo(conn, key) {
-    const q = QUIZ.questoes[H.qIndex];
-    const a = H.answers[key];
-    const standings = sortedPlayers();
-    const rank = standings.findIndex((s) => s.key === key) + 1;
-    const p = H.players.get(key);
-    send(conn, {
-      type: "result",
-      correctLetter: q.correta,
-      answered: !!a,
-      letter: a ? a.letter : null,
-      correct: a ? a.correct : false,
-      points: a ? a.points : 0,
-      score: p ? p.score : 0,
-      rank: rank || standings.length + 1,
-      total: standings.length,
-    });
-  }
-
-  function sortedPlayers() {
-    return Array.from(H.players.entries())
-      .map(([key, p]) => ({ key, name: p.name, score: p.score, gain: (H.answers[key] || {}).points || 0, online: p.online }))
-      .sort((a, b) => b.score - a.score || b.gain - a.gain);
-  }
-
-  function showRanking() {
+  async function showRanking() {
     H.phase = "ranking";
-    const list = $("#rank-list"); list.innerHTML = "";
-    const rows = sortedPlayers().slice(0, 12);
-    if (!rows.length) { list.innerHTML = `<p class="empty-hint" style="text-align:center">Sem jogadores.</p>`; }
+    await hostPost("ranking");
+    renderRankingList();
+    show("ranking");
+  }
+
+  function renderRankingList() {
+    const list = $("#rank-list"); if (!list) return;
+    list.innerHTML = "";
+    const rows = (H.standings || []).slice(0, 12);
+    if (!rows.length) { list.innerHTML = `<p class="empty-hint" style="text-align:center">Sem jogadores.</p>`; return; }
     rows.forEach((r, i) => {
       const pos = i + 1;
       const medal = pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : "";
@@ -362,17 +210,16 @@
       row.style.animationDelay = i * 0.05 + "s";
       row.innerHTML = `
         <div class="pos">${medal || pos}</div>
-        <div class="who"><span class="av">${C.initials(r.name)}</span>${escapeHtml(r.name)}</div>
+        <div class="who"><span class="av">${C.initials(r.nome)}</span>${escapeHtml(r.nome)}</div>
         <div class="gain ${r.gain ? "" : "zero"}">${r.gain ? "+" + r.gain : "—"}</div>
         <div class="score">${r.score}</div>`;
       list.appendChild(row);
     });
-    broadcast({ type: "standings" });
-    show("ranking");
   }
 
-  function showDiscussion() {
+  async function showDiscussion() {
     H.phase = "discussion";
+    hostPost("discussao");
     const q = QUIZ.questoes[H.qIndex];
     $("#disc-title").textContent = `Questão ${q.n} — ${q.tema}`;
     $("#disc-answer").innerHTML = `<span class="letter">${q.correta}</span> Resposta correta`;
@@ -404,54 +251,62 @@
     return el;
   }
 
-  function showFinal() {
+  async function showFinal() {
     H.phase = "final";
+    lockTimeSelect(false); // libera o tempo de novo (para uma nova rodada)
+    const r = await hostPost("final");
+    if (r && Array.isArray(r.ranking)) {
+      H.standings = r.ranking.map((x) => ({ nome: x.aluno, score: x.pontos, gain: 0, online: true }));
+    }
     if (H.ecg) H.ecg.set(1);
     const curEl = $("#ecg-cur"); if (curEl) curEl.textContent = String(TOTAL).padStart(2, "0");
-    const rows = sortedPlayers();
 
-    // Grava o resumo/ranking final da partida no MongoDB (via backend).
-    try {
-      if (H.sessionId) logToServer({
-        tipo: "sessao",
-        sessionId: H.sessionId,
-        sala: H.room,
-        inicioEm: H.startedAt || null,
-        fimEm: Date.now(),
-        totalQuestoes: TOTAL,
-        ranking: rows.map((r, i) => ({ posicao: i + 1, aluno: r.name, pontos: r.score })),
-      });
-    } catch (e) {}
-
+    const rows = H.standings || [];
     const top3 = rows.slice(0, 3);
     const order = [1, 0, 2]; // colunas: 2º, 1º, 3º
     const pod = $("#podium"); pod.innerHTML = "";
-    order.forEach((idx, i) => {
-      const r = top3[idx]; if (!r) return;
+    order.forEach((idx) => {
+      const r2 = top3[idx]; if (!r2) return;
       const place = idx + 1;
       const col = document.createElement("div");
       col.className = "col c" + place;
       col.innerHTML = `
-        <div class="av-lg">${C.initials(r.name)}</div>
-        <div class="name">${escapeHtml(r.name)}</div>
-        <div class="pts">${r.score} pts</div>
+        <div class="av-lg">${C.initials(r2.nome)}</div>
+        <div class="name">${escapeHtml(r2.nome)}</div>
+        <div class="pts">${r2.score} pts</div>
         <div class="stand">${place === 1 ? "🥇" : place === 2 ? "🥈" : "🥉"}</div>`;
       pod.appendChild(col);
     });
     const list = $("#final-list"); list.innerHTML = "";
-    rows.slice(3, 15).forEach((r, i) => {
+    rows.slice(3, 15).forEach((r2, i) => {
       const row = document.createElement("div");
       row.className = "rank-row";
       row.innerHTML = `<div class="pos">${i + 4}</div>
-        <div class="who"><span class="av">${C.initials(r.name)}</span>${escapeHtml(r.name)}</div>
-        <div class="gain zero"></div><div class="score">${r.score}</div>`;
+        <div class="who"><span class="av">${C.initials(r2.nome)}</span>${escapeHtml(r2.nome)}</div>
+        <div class="gain zero"></div><div class="score">${r2.score}</div>`;
       list.appendChild(row);
     });
-    broadcast({ type: "final" });
     show("final");
   }
 
+  function backToLobby() {
+    H.phase = "lobby";
+    H.qIndex = -1;
+    lockTimeSelect(false); // no lobby o tempo volta a ser ajustável
+    if (H.ecg) H.ecg.set(0);
+    paintEcg();
+    show("lobby");
+  }
+
   /* ----------------------------- Render ----------------------------- */
+  function lockTimeSelect(locked) {
+    const el = $("#time-select");
+    if (el) {
+      el.disabled = !!locked;
+      el.title = locked ? "O tempo já foi definido para esta partida" : "Tempo por questão";
+    }
+  }
+
   function renderLobbyStatic() {
     $("#room-code").textContent = H.room;
     $("#join-url").textContent = joinURL();
@@ -465,20 +320,23 @@
 
   function renderPlayers() {
     const box = $("#players");
-    const arr = Array.from(H.players.values());
-    $("#count-pill").innerHTML = `<b>${arr.filter((p) => p.online).length}</b> conectados`;
-    if (!arr.length) { box.innerHTML = `<span class="empty-hint">Aguardando alunos entrarem…</span>`; }
-    else {
-      box.innerHTML = "";
-      arr.sort((a, b) => Number(b.online) - Number(a.online));
-      arr.forEach((p) => {
-        const c = document.createElement("span");
-        c.className = "chip" + (p.online ? "" : " off");
-        c.innerHTML = `<span class="av">${C.initials(p.name)}</span>${escapeHtml(p.name)}`;
-        box.appendChild(c);
-      });
+    const arr = (H.standings || []).slice();
+    $("#count-pill").innerHTML = `<b>${H.online || 0}</b> conectados`;
+    if (box) {
+      if (!arr.length) { box.innerHTML = `<span class="empty-hint">Aguardando alunos entrarem…</span>`; }
+      else {
+        box.innerHTML = "";
+        arr.sort((a, b) => Number(b.online) - Number(a.online));
+        arr.forEach((p) => {
+          const c = document.createElement("span");
+          c.className = "chip" + (p.online ? "" : " off");
+          c.innerHTML = `<span class="av">${C.initials(p.nome)}</span>${escapeHtml(p.nome)}`;
+          box.appendChild(c);
+        });
+      }
     }
-    $("#btn-start").disabled = arr.filter((p) => p.online).length < 1;
+    const startBtn = $("#btn-start");
+    if (startBtn) startBtn.disabled = (H.online || 0) < 1;
   }
 
   function renderQuestion() {
@@ -512,7 +370,7 @@
 
   function updateAnsweredCount() {
     if (H.phase !== "question") return;
-    $("#answered-count").innerHTML = `<b>${Object.keys(H.answers).length}</b> / ${countOnline()} responderam`;
+    $("#answered-count").innerHTML = `<b>${H.respondidos || 0}</b> / ${H.online || 0} responderam`;
   }
 
   function renderProgress(el) {
@@ -530,30 +388,31 @@
     return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   }
 
-  /* ------------------------------ Init ------------------------------ */
   function paintEcg() {
     if (H.ecg) H.ecg.set(H.qIndex < 0 ? 0 : (H.qIndex + 1) / TOTAL);
     const cur = $("#ecg-cur");
     if (cur) cur.textContent = H.qIndex < 0 ? "—" : String(H.qIndex + 1).padStart(2, "0");
   }
 
+  /* ------------------------------ Init ------------------------------ */
   function init() {
     $("#year-title").textContent = QUIZ.titulo;
     $("#year-sub").textContent = QUIZ.subtitulo;
     const totEl = $("#ecg-tot"); if (totEl) totEl.textContent = TOTAL;
     H.ecg = (window.ECG && $("#ecg-track")) ? ECG.mount($("#ecg-track"), $("#ecg-trace"), $("#ecg-dot"), TOTAL) : null;
-    startPeer();
+    startRoom();
 
     $("#btn-start").addEventListener("click", startGame);
     $("#btn-reveal").addEventListener("click", revealAnswer);
     $("#btn-ranking").addEventListener("click", showRanking);
     $("#btn-discussion").addEventListener("click", showDiscussion);
     $("#btn-next").addEventListener("click", nextQuestion);
-    $("#btn-again").addEventListener("click", () => { startGame(); });
+    // "Jogar novamente" volta ao lobby: lá o tempo pode ser reajustado antes de recomeçar.
+    $("#btn-again").addEventListener("click", backToLobby);
     $("#btn-new-room").addEventListener("click", () => {
       const nr = newRoomCode();
       localStorage.setItem("qz_room", nr);
-      localStorage.removeItem("qz_scores_" + H.room);
+      localStorage.setItem("qz_session", nr + "-" + Date.now());
       location.reload();
     });
     $("#btn-copy").addEventListener("click", () => {

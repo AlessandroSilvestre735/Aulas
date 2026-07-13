@@ -12,13 +12,13 @@ material** (nada foi inventado).
   ranking ao vivo e a discussão.
 - **`frontend/play.html`** — tela do **aluno** (celular): entra na sala, responde e vê a pontuação.
 
-A conexão celular ↔ projetor é **peer-to-peer (WebRTC via PeerJS)** — o jogo em si não
-precisa de servidor nem login. As bibliotecas (`peerjs`, `qrcode`) já estão embutidas em
-`frontend/assets/js/vendor/`, então funciona mesmo sem internet estável na sala (desde que
-os celulares consigam alcançar o broker público do PeerJS para o "aperto de mão" inicial).
+A coordenação celular ↔ projetor é feita pelo **backend** (`/api/host` e `/api/player`,
+funções serverless na Vercel) usando o **MongoDB** como estado da partida + *polling*. Isso
+funciona em **qualquer rede** (tudo via HTTPS): o aluno é **cadastrado assim que digita o
+nome**, a tela dele libera na hora e o aplicador vê os presentes ao vivo (estilo Kahoot).
 
-Opcionalmente, o professor grava as **interações dos alunos** (respostas + ranking final)
-num **MongoDB**, através de uma pequena função em `backend/` — veja *Persistência* abaixo.
+Como as respostas passam pelo servidor, as **interações dos alunos** (cada resposta + o
+ranking final) já ficam gravadas no **MongoDB** — veja *Persistência* abaixo.
 
 ## Como usar na aula
 
@@ -34,22 +34,22 @@ num **MongoDB**, através de uma pequena função em `backend/` — veja *Persis
    - **Próxima questão**.
 6. No fim, aparece o **pódio** com os três primeiros.
 
-> Dica: o tempo por questão (20/30/45/60s) é ajustável no lobby. O código da sala e as
-> pontuações sobrevivem a um F5 do professor (o link do QR continua válido).
+> Dica: o tempo por questão (20/30/45/60s) é escolhido **no lobby** e **trava ao iniciar**
+> (volta a ser ajustável ao voltar pro lobby em "Jogar novamente"). O código da sala
+> sobrevive a um F5 do professor (o link do QR continua válido).
 
 ## Publicando (para o QR funcionar)
 
 O QR precisa apontar para uma URL que os celulares consigam abrir. Opções:
 
-- **Vercel (recomendado)**: conecte o repositório no painel da Vercel. Cada `git push`
-  faz **deploy automático**. É o único que roda o `backend/` (função serverless), então é
-  o necessário para gravar no MongoDB. Configure a variável `MONGO_URI` em
-  *Settings → Environment Variables* (nunca no `.env` público).
-- **GitHub Pages / hospedagem estática**: servem só o `frontend/` (o QR e o quiz funcionam),
-  mas **não** executam o `backend/`, então não gravam no MongoDB.
-- **Teste local na mesma rede**: `pnpm dev` serve o `frontend/` e você acessa pelo IP da
-  máquina no celular (`http://SEU_IP:8000`). Para testar o backend junto: `pnpm dev:api`
-  (usa `vercel dev`).
+- **Vercel (necessária)**: conecte o repositório no painel da Vercel. Cada `git push` faz
+  **deploy automático**. O quiz **depende do `backend/`** (funções serverless que coordenam
+  a partida), então a Vercel — ou outra plataforma com serverless — é necessária. Configure
+  a variável `MONGO_URI` em *Settings → Environment Variables* (nunca no `.env` público).
+- **GitHub Pages / hospedagem 100% estática**: **não** roda o `backend/`, então o quiz **não
+  funciona** ali (serviria apenas os arquivos do `frontend/`).
+- **Teste local**: `pnpm dev` serve só o `frontend/` (sem backend). Para rodar o backend
+  junto — necessário pro quiz — use `pnpm dev:api` (`vercel dev`) com a `MONGO_URI` no `.env`.
 
 Abrir direto do arquivo (`file://`) **não** serve para os celulares — use uma das opções acima.
 
@@ -63,34 +63,38 @@ frontend/                 PÚBLICO — servido ao navegador
     css/styles.css        Tema (todas as cores/fontes em variáveis no topo)
     js/quiz-data.js       As 18 questões, gabaritos, cards de discussão e imagens
     js/common.js          Constantes + regra de pontuação por velocidade
-    js/host.js            Lógica do professor (sala, respostas, ranking, envio ao backend)
-    js/player.js          Lógica do celular
-    js/vendor/            peerjs.min.js e qrcode.min.js (embutidos)
+    js/host.js            Professor: coordena a partida via /api/host (+ polling)
+    js/player.js          Aluno: entra e responde via /api/player (+ polling)
+    js/vendor/            qrcode.min.js (QR do lobby)
     img/                  Imagens extraídas do material
 backend/                  PRIVADO — servidor (lê variáveis de ambiente; nunca exposto)
-  api/log.js              Endpoint POST /api/log — grava as interações no MongoDB
+  api/host.js             /api/host   — aplicador controla e acompanha a partida
+  api/player.js           /api/player — aluno entra, responde e acompanha
   lib/config.js           Configuração (MONGO_URI etc.) lida SÓ do ambiente
   lib/db.js               Conexão MongoDB reutilizável
-vercel.json               Roteia estático (frontend) e a função (/api/log → backend)
+  lib/http.js             Utilidades HTTP (CORS, body, coleções)
+  lib/quiz.js             Pontuação e utilidades (espelham o frontend)
+vercel.json               Estático (frontend) + rotas /api/host e /api/player
 .env.example              Modelo do .env (o .env real fica fora do git)
 ```
 
 ## Persistência das interações (MongoDB)
 
-Quando o site roda na **Vercel** com a variável `MONGO_URI` configurada, o professor
-(`host.js`) envia ao backend, via `POST /api/log`:
+Como a partida é coordenada pelo backend, as interações já ficam gravadas no **MongoDB**
+(banco `cesmac_quiz` por padrão):
 
-- a cada questão revelada → coleção **`respostas`** (1 documento por aluno: nome, letra
-  escolhida, se acertou, tempo de resposta e pontos);
-- ao final da partida → coleção **`sessoes`** (1 documento com o ranking final).
+- **`salas`** — estado ao vivo de cada sala (fase, questão atual, etc.).
+- **`jogadores`** — cada aluno presente (nome, pontuação, presença).
+- **`respostas`** — 1 documento por resposta (aluno, questão, letra, se acertou, tempo, pontos).
+- **`sessoes`** — 1 documento por partida, com o ranking final.
 
-Cada partida recebe um `sessionId` único (`sala + timestamp`) para agrupar os registros.
-O envio é **"dispara e esquece"**: se o backend estiver fora do ar, o quiz continua normal.
+Cada partida tem um `sessionId` único (`sala + timestamp`) para agrupar os registros. A
+pontuação é calculada **no servidor** (o gabarito não fica exposto no aparelho do aluno).
 
 **Segurança:** a `MONGO_URI` (com a senha) vive **só** nas variáveis de ambiente do servidor
 — nunca no código nem no navegador. Localmente fica no `.env` (git-ignored; use o
-`.env.example` como modelo). O endpoint `/api/log` é aberto (sem login): para uma atividade
-de sala tudo bem, mas dá para adicionar proteção depois se necessário.
+`.env.example` como modelo). Os endpoints são abertos (sem login): para uma atividade de
+sala tudo bem, mas dá para adicionar proteção depois se necessário.
 
 ## Identidade visual
 

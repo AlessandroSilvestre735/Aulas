@@ -22,6 +22,8 @@ module.exports = {
 
   // Nomes (não são segredos) — configuráveis por env, com padrão sensato.
   dbName: process.env.MONGO_DB || "cesmac_quiz",
+  colSalas: process.env.MONGO_COL_SALAS || "salas",
+  colJogadores: process.env.MONGO_COL_JOGADORES || "jogadores",
   colRespostas: process.env.MONGO_COL_RESPOSTAS || "respostas",
   colSessoes: process.env.MONGO_COL_SESSOES || "sessoes",
 };

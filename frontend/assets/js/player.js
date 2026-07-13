@@ -1,22 +1,26 @@
 /* =====================================================================
    PLAYER (celular do aluno)
+   - Entra pelo BACKEND (/api/player): ao mandar o nome já fica cadastrado
+     e a tela libera. Acompanha a partida por POLLING (sem P2P), então
+     funciona em qualquer rede.
    ===================================================================== */
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
   const C = window.QZ;
 
+  const POLL_MS = 1500;
+
   const P = {
     room: null,
     name: "",
-    peer: null,
-    conn: null,
-    connected: false,
-    qIndex: -1,
-    letters: [],
+    sessionId: null,
     answered: false,
+    renderedKey: "",      // sessionId:qIndex já renderizado
+    shownResultKey: "",   // resultado já exibido
     me: { score: 0, rank: 0, total: 0 },
     timerId: null,
-    retry: 0,
+    pollId: null,
+    joining: false,
   };
 
   function show(id) {
@@ -31,99 +35,121 @@
     return m ? decodeURIComponent(m[1]) : null;
   }
 
-  /* ------------------------------ Conexão ------------------------------ */
-  function connect() {
-    setStatus("Conectando…", "Entrando na sala " + P.room);
-    show("wait");
-    try { if (P.peer) P.peer.destroy(); } catch (e) {}
-
-    const peer = new Peer(C.PEER_CONFIG);
-    P.peer = peer;
-
-    peer.on("open", () => {
-      const conn = peer.connect(C.PREFIX + P.room, { reliable: true });
-      P.conn = conn;
-      conn.on("open", () => {
-        P.connected = true; P.retry = 0;
-        conn.send({ type: "join", name: P.name });
-        setStatus("Conectado!", "Aguarde o professor iniciar…");
-      });
-      conn.on("data", onHostMessage);
-      conn.on("close", () => onDrop());
-      conn.on("error", () => onDrop());
-    });
-
-    peer.on("error", (err) => {
-      const t = err && String(err.type);
-      if (t === "peer-unavailable") {
-        setStatus("Sala não encontrada", "Verifique o código e tente novamente.");
-        setTimeout(retry, 2500);
-      } else if (t === "network" || t === "server-error" || t === "socket-error" || t === "disconnected") {
-        setStatus("Reconectando…", "Conexão instável, tentando de novo.");
-        setTimeout(retry, 2000);
-      } else {
-        console.warn("peer error", err);
-        setTimeout(retry, 2500);
-      }
-    });
-  }
-
-  function onDrop() {
-    P.connected = false;
-    setStatus("Reconectando…", "Perdemos a conexão, tentando voltar.");
-    show("wait");
-    setTimeout(retry, 1500);
-  }
-
-  function retry() {
-    if (P.connected) return;
-    P.retry++;
-    connect();
-  }
-
   function setStatus(big, muted) {
     if ($("#p-wait-big")) $("#p-wait-big").textContent = big;
     if ($("#p-wait-muted")) $("#p-wait-muted").textContent = muted || "";
   }
 
-  /* --------------------------- Mensagens host --------------------------- */
-  function onHostMessage(msg) {
-    if (!msg || typeof msg !== "object") return;
-    switch (msg.type) {
-      case "welcome":   P.name = msg.name; renderMe(); break;
-      case "lobby":     setStatus("Tudo pronto!", "Aguarde o professor iniciar…"); show("wait"); break;
-      case "question":  onQuestion(msg); break;
-      case "answered":  onAnswered(msg.letter); break;
-      case "locked":    onLocked(); break;
-      case "result":    onResult(msg); break;
-      case "standings": setStatus("Confira o ranking!", "Olhe a tela do professor 👀"); show("wait"); break;
-      case "final":     onFinal(); break;
-    }
+  /* --------------------------- Backend --------------------------- */
+  async function postPlayer(extra) {
+    try {
+      const r = await fetch("/api/player", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.assign({ sala: P.room }, extra)),
+      });
+      return await r.json().catch(() => null);
+    } catch (e) { return null; }
   }
 
-  function onQuestion(msg) {
-    P.qIndex = msg.index;
-    P.letters = msg.letters || ["A", "B", "C", "D"];
-    P.answered = false;
+  async function getPlayer() {
+    try {
+      const r = await fetch("/api/player?sala=" + encodeURIComponent(P.room) + "&nome=" + encodeURIComponent(P.name));
+      return await r.json().catch(() => null);
+    } catch (e) { return null; }
+  }
 
-    $("#p-qn").textContent = `Questão ${msg.n} de ${msg.total}`;
-    $("#p-qtema").textContent = msg.tema || "";
+  /* ---------------------------- Entrar ---------------------------- */
+  async function doJoin() {
+    setStatus("Entrando…", "Sala " + P.room);
+    show("wait");
+    const j = await postPlayer({ action: "entrar", nome: P.name });
+    if (!j || !j.ok) {
+      // Sala ainda não aberta (ou instabilidade): tenta de novo sozinho.
+      if (j && j.existe === false) setStatus("Procurando a sala…", "Aguardando o professor abrir a sala " + P.room);
+      else setStatus("Reconectando…", "Tentando entrar de novo.");
+      setTimeout(doJoin, 2500);
+      return;
+    }
+    P.name = j.nome; // nome final (pode ter virado "Fulano (2)")
+    localStorage.setItem("qz_player_name", P.name);
+    P.sessionId = j.sessionId;
+    renderMe();
+    setStatus("Conectado!", "Aguarde o professor iniciar…");
+    show("wait");
+    startPolling();
+  }
+
+  function startPolling() {
+    clearInterval(P.pollId);
+    pollOnce();
+    P.pollId = setInterval(pollOnce, POLL_MS);
+  }
+
+  async function pollOnce() {
+    apply(await getPlayer());
+  }
+
+  /* ----------------------- Aplica o estado ----------------------- */
+  function apply(s) {
+    if (!s || !s.ok) { setStatus("Reconectando…", "Conexão instável, tentando de novo."); return; }
+    if (!s.existe) { setStatus("Sala encerrada", "O professor fechou a sala."); show("wait"); return; }
+
+    P.sessionId = s.sessionId;
+    if (s.me) { P.me.score = s.me.score; P.me.rank = s.me.rank; P.me.total = s.me.total; renderMe(); }
+
+    const fase = s.fase;
+
+    if (fase === "questao" && s.questao) {
+      const key = s.sessionId + ":" + s.questao.qIndex;
+      if (P.renderedKey !== key) {
+        onQuestion(s.questao);
+        P.renderedKey = key;
+        P.answered = !!s.jaRespondeu;
+        if (s.jaRespondeu) markAnswered(s.minhaResposta);
+      } else if (s.jaRespondeu && !P.answered) {
+        P.answered = true; markAnswered(s.minhaResposta);
+      }
+      if (s.locked) onLocked();
+      return;
+    }
+
+    if (fase === "final") { onFinal(); return; }
+
+    if (s.resultado) { // revelado / ranking / discussao
+      const rk = "res:" + s.sessionId + ":" + s.qIndex;
+      if (P.shownResultKey !== rk) { onResult(s.resultado); P.shownResultKey = rk; }
+      return;
+    }
+
+    // lobby (ou aguardando a primeira questão)
+    setStatus("Tudo pronto!", "Aguarde o professor iniciar…");
+    show("wait");
+    P.renderedKey = "";
+  }
+
+  /* ---------------------------- Telas ---------------------------- */
+  function onQuestion(q) {
+    P.answered = false;
+    $("#p-qn").textContent = `Questão ${q.n} de ${q.total}`;
+    $("#p-qtema").textContent = q.tema || "";
     renderMe();
 
+    const letters = q.letters && q.letters.length ? q.letters : ["A", "B", "C", "D"];
     const box = $("#p-options"); box.innerHTML = "";
-    P.letters.forEach((l) => {
+    letters.forEach((l) => {
       const b = document.createElement("button");
       b.className = "p-opt"; b.dataset.l = l;
       b.innerHTML = `${l}<span class="lbl">toque para responder</span>`;
       b.addEventListener("click", () => choose(l, b));
       box.appendChild(b);
     });
-    startTimer(msg.time || C.DEFAULT_TIME);
+    startTimer(Math.max(1, Math.ceil((q.restanteMs || (q.time || C.DEFAULT_TIME) * 1000) / 1000)));
     show("question");
   }
 
   function choose(letter, btn) {
-    if (P.answered || !P.connected) return;
+    if (P.answered) return;
     P.answered = true;
     Array.from($("#p-options").children).forEach((b) => {
       b.classList.toggle("chosen", b === btn);
@@ -131,10 +157,15 @@
       b.disabled = true;
     });
     try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
-    P.conn && P.conn.send({ type: "answer", index: P.qIndex, letter });
+    postPlayer({ action: "responder", nome: P.name, qIndex: qIndexFromKey(), letra: letter });
   }
 
-  function onAnswered(letter) {
+  function qIndexFromKey() {
+    const parts = String(P.renderedKey).split(":");
+    return parseInt(parts[parts.length - 1], 10);
+  }
+
+  function markAnswered(letter) {
     P.answered = true;
     Array.from($("#p-options").children).forEach((b) => {
       const isMine = b.dataset.l === letter;
@@ -146,9 +177,8 @@
 
   function onLocked() {
     clearInterval(P.timerId);
-    $("#p-timer > i").style.width = "0%";
+    const fill = $("#p-timer > i"); if (fill) fill.style.width = "0%";
     Array.from($("#p-options").children).forEach((b) => (b.disabled = true));
-    if (!P.answered) setStatus("Tempo esgotado!", "Você não respondeu a tempo.");
   }
 
   function onResult(msg) {
@@ -212,6 +242,7 @@
 
     $("#p-join-form").addEventListener("submit", (e) => {
       e.preventDefault();
+      if (P.joining) return;
       const name = $("#p-name").value.trim();
       if (!name) { $("#p-name").focus(); return; }
       if (!P.room) {
@@ -219,9 +250,10 @@
         if (!P.room) { $("#p-room").focus(); return; }
       }
       P.name = name.slice(0, 24);
+      P.joining = true;
       localStorage.setItem("qz_player_name", P.name);
       renderMe();
-      connect();
+      doJoin();
     });
 
     $("#p-play-again") && $("#p-play-again").addEventListener("click", () => {
