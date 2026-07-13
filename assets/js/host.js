@@ -365,6 +365,8 @@
 
   function showFinal() {
     H.phase = "final";
+    if (H.ecg) H.ecg.set(1);
+    const curEl = $("#ecg-cur"); if (curEl) curEl.textContent = String(TOTAL).padStart(2, "0");
     const rows = sortedPlayers();
     const top3 = rows.slice(0, 3);
     const order = [1, 0, 2]; // colunas: 2º, 1º, 3º
@@ -450,6 +452,7 @@
     $("#btn-reveal").style.display = "";
     $("#btn-ranking").style.display = "none";
     updateAnsweredCount();
+    paintEcg();
   }
 
   function updateAnsweredCount() {
@@ -473,9 +476,17 @@
   }
 
   /* ------------------------------ Init ------------------------------ */
+  function paintEcg() {
+    if (H.ecg) H.ecg.set(H.qIndex < 0 ? 0 : (H.qIndex + 1) / TOTAL);
+    const cur = $("#ecg-cur");
+    if (cur) cur.textContent = H.qIndex < 0 ? "—" : String(H.qIndex + 1).padStart(2, "0");
+  }
+
   function init() {
     $("#year-title").textContent = QUIZ.titulo;
     $("#year-sub").textContent = QUIZ.subtitulo;
+    const totEl = $("#ecg-tot"); if (totEl) totEl.textContent = TOTAL;
+    H.ecg = (window.ECG && $("#ecg-track")) ? ECG.mount($("#ecg-track"), $("#ecg-trace"), $("#ecg-dot"), TOTAL) : null;
     startPeer();
 
     $("#btn-start").addEventListener("click", startGame);

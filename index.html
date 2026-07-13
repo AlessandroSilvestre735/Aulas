@@ -3,20 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Questões Comentadas — CESMAC</title>
+  <title>Questões Comentadas — CESMAC | Grupo MedCof</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Spline+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
+  <img class="watermark" src="assets/img/medcof-watermark.png" alt="" aria-hidden="true">
+
   <!-- Topbar --------------------------------------------------------- -->
   <div class="topbar">
     <div class="brand">
-      <span class="logo">Q</span>
-      <div>
-        <span id="year-title">Questões Comentadas</span>
-        <small id="year-sub">Aula</small>
-      </div>
+      <img class="brand-logo" src="assets/img/medcof-logo.png" alt="Grupo MedCof">
+      <span class="sub"><span id="year-title">Questões Comentadas</span> · <span id="year-sub">Aula</span></span>
     </div>
+
+    <div class="ecg-wrap">
+      <span class="ecg-idx">Questão <b id="ecg-cur">—</b> / <span id="ecg-tot">18</span></span>
+      <svg class="strip" viewBox="0 0 1200 32" preserveAspectRatio="none" aria-hidden="true">
+        <path class="track" id="ecg-track"></path>
+        <path class="trace" id="ecg-trace"></path>
+        <circle class="dot" id="ecg-dot" r="3.4" style="opacity:0"></circle>
+      </svg>
+    </div>
+
     <div class="meta">
       <span class="pill" id="room-pill">Sala <b>—</b></span>
       <span class="pill" id="count-pill"><b>0</b> conectados</span>
@@ -29,10 +40,11 @@
     <section id="screen-lobby" class="screen active">
       <div class="lobby-grid">
         <div class="hero">
-          <h1>Responda pelo celular e dispute o ranking 🏆</h1>
-          <p class="lead">Quem acerta <b>mais rápido</b> ganha <b>mais pontos</b>. Depois de cada questão, discutimos juntos com os cards e imagens.</p>
+          <p class="eyebrow">Questões comentadas · CESMAC</p>
+          <h1>Responda pelo celular e<br><span class="gold">dispute o ranking</span></h1>
+          <p class="lead">Quem acerta <b>mais rápido</b> ganha <b>mais pontos</b>. Depois de cada questão, discutimos juntos — em cards, com as imagens do material.</p>
           <ul class="steps">
-            <li><span class="n">1</span><div>Abra a câmera do celular e aponte para o <b>QR code</b> ao lado.</div></li>
+            <li><span class="n">1</span><div>Aponte a câmera do celular para o <b>QR code</b> ao lado.</div></li>
             <li><span class="n">2</span><div>Digite seu <b>nome</b> e toque em entrar.</div></li>
             <li><span class="n">3</span><div>Seu nome aparece aqui. Quando todos entrarem, começamos!</div></li>
           </ul>
@@ -40,7 +52,7 @@
           <div class="controls">
             <label class="pill" style="display:flex;align-items:center;gap:8px">
               ⏱️ Tempo:
-              <select id="time-select" style="background:transparent;border:0;color:var(--text);font-weight:800;font-size:15px">
+              <select id="time-select" style="background:transparent;border:0;color:var(--cream);font-weight:700;font-size:15px">
                 <option value="20">20s</option>
                 <option value="30" selected>30s</option>
                 <option value="45">45s</option>
@@ -77,7 +89,6 @@
       <div class="q-head">
         <span class="q-tag" id="q-tag">Questão</span>
         <span class="q-tema" id="q-tema"></span>
-        <div class="progress" id="q-progress" style="margin-left:auto"></div>
       </div>
       <h2 class="q-title" id="q-title"></h2>
       <div class="q-img" id="q-img" style="display:none"></div>
@@ -111,7 +122,6 @@
     <section id="screen-discussion" class="screen">
       <div class="disc-head">
         <h1 id="disc-title">Discussão</h1>
-        <div class="progress" id="disc-progress" style="margin-left:auto"></div>
       </div>
       <div class="disc-answer" id="disc-answer"></div>
       <div class="cards" id="cards"></div>
@@ -140,6 +150,7 @@
   <script src="assets/js/vendor/qrcode.min.js"></script>
   <script src="assets/js/quiz-data.js"></script>
   <script src="assets/js/common.js"></script>
+  <script src="assets/js/ecg.js"></script>
   <script src="assets/js/host.js"></script>
 </body>
 </html>

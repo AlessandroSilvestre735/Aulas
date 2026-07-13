@@ -64,6 +64,15 @@ assets/
 
 ## Identidade visual
 
-O tema é controlado por **variáveis CSS** no início de `assets/css/styles.css`
-(`--bg`, `--brand`, `--brand-2`, cores das alternativas, raios, fonte…). Para casar com
-uma identidade visual específica, basta ajustar esses valores — a lógica não muda.
+Segue a identidade **Grupo MedCof** da apresentação de referência: fundo vinho, dourado +
+rosé, fontes **Archivo** (títulos) e **Spline Sans** (texto), cartões de vidro com barra de
+acento e a assinatura da marca — a **barra de progresso em batimento (ECG) dourado** no topo
+(um batimento por questão). O logo, a marca-d'água e a textura de fundo foram reaproveitados
+da apresentação de referência (`assets/img/medcof-*`, `bg-texture.jpg`).
+
+As fontes vêm do Google Fonts; sem internet, o sistema usa fontes locais equivalentes
+(Segoe UI/system-ui) — cores, layout e componentes seguem idênticos.
+
+Tudo é controlado por **variáveis CSS** no início de `assets/css/styles.css` (paleta vinho/
+dourado/rosé, cores das alternativas A–E, raios, fontes), então qualquer ajuste fino de marca
+é feito ali — sem tocar na lógica.
