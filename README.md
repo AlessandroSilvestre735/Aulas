@@ -75,17 +75,34 @@ vercel.json               Roteia estático (frontend) e a função (/api/log →
 .env.example              Modelo do .env (o .env real fica fora do git)
 ```
 
+## Persistência das interações (MongoDB)
+
+Quando o site roda na **Vercel** com a variável `MONGO_URI` configurada, o professor
+(`host.js`) envia ao backend, via `POST /api/log`:
+
+- a cada questão revelada → coleção **`respostas`** (1 documento por aluno: nome, letra
+  escolhida, se acertou, tempo de resposta e pontos);
+- ao final da partida → coleção **`sessoes`** (1 documento com o ranking final).
+
+Cada partida recebe um `sessionId` único (`sala + timestamp`) para agrupar os registros.
+O envio é **"dispara e esquece"**: se o backend estiver fora do ar, o quiz continua normal.
+
+**Segurança:** a `MONGO_URI` (com a senha) vive **só** nas variáveis de ambiente do servidor
+— nunca no código nem no navegador. Localmente fica no `.env` (git-ignored; use o
+`.env.example` como modelo). O endpoint `/api/log` é aberto (sem login): para uma atividade
+de sala tudo bem, mas dá para adicionar proteção depois se necessário.
+
 ## Identidade visual
 
 Segue a identidade **Grupo MedCof** da apresentação de referência: fundo vinho, dourado +
 rosé, fontes **Archivo** (títulos) e **Spline Sans** (texto), cartões de vidro com barra de
 acento e a assinatura da marca — a **barra de progresso em batimento (ECG) dourado** no topo
 (um batimento por questão). O logo, a marca-d'água e a textura de fundo foram reaproveitados
-da apresentação de referência (`assets/img/medcof-*`, `bg-texture.jpg`).
+da apresentação de referência (`frontend/assets/img/medcof-*`, `bg-texture.jpg`).
 
 As fontes vêm do Google Fonts; sem internet, o sistema usa fontes locais equivalentes
 (Segoe UI/system-ui) — cores, layout e componentes seguem idênticos.
 
-Tudo é controlado por **variáveis CSS** no início de `assets/css/styles.css` (paleta vinho/
+Tudo é controlado por **variáveis CSS** no início de `frontend/assets/css/styles.css` (paleta vinho/
 dourado/rosé, cores das alternativas A–E, raios, fontes), então qualquer ajuste fino de marca
 é feito ali — sem tocar na lógica.
