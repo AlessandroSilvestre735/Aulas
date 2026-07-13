@@ -1,5 +1,13 @@
 node_modules/
 package-lock.json
-package.json
+pnpm-lock.yaml
 .DS_Store
 *.log
+# Segredos — NUNCA versionar (contém a URI/senha do MongoDB)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Config local do Claude Code / editor
+.claude/
