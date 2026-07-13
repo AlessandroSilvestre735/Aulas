@@ -8,15 +8,17 @@ material** (nada foi inventado).
 
 ## Como funciona
 
-- **`index.html`** — tela do **professor** (projetor): mostra o QR, as questões, o
+- **`frontend/index.html`** — tela do **professor** (projetor): mostra o QR, as questões, o
   ranking ao vivo e a discussão.
-- **`play.html`** — tela do **aluno** (celular): entra na sala, responde e vê a pontuação.
+- **`frontend/play.html`** — tela do **aluno** (celular): entra na sala, responde e vê a pontuação.
 
-A conexão celular ↔ projetor é **peer-to-peer (WebRTC via PeerJS)** — não precisa de
-servidor próprio, banco de dados nem login. As bibliotecas (`peerjs`, `qrcode`) já estão
-embutidas em `assets/js/vendor/`, então funciona mesmo sem internet estável na sala
-(desde que os celulares consigam alcançar o broker público do PeerJS para o "aperto de
-mão" inicial).
+A conexão celular ↔ projetor é **peer-to-peer (WebRTC via PeerJS)** — o jogo em si não
+precisa de servidor nem login. As bibliotecas (`peerjs`, `qrcode`) já estão embutidas em
+`frontend/assets/js/vendor/`, então funciona mesmo sem internet estável na sala (desde que
+os celulares consigam alcançar o broker público do PeerJS para o "aperto de mão" inicial).
+
+Opcionalmente, o professor grava as **interações dos alunos** (respostas + ranking final)
+num **MongoDB**, através de uma pequena função em `backend/` — veja *Persistência* abaixo.
 
 ## Como usar na aula
 
@@ -39,27 +41,38 @@ mão" inicial).
 
 O QR precisa apontar para uma URL que os celulares consigam abrir. Opções:
 
-- **GitHub Pages**: em *Settings → Pages*, publique a branch. O site fica em
-  `https://<usuário>.github.io/<repo>/` e o QR já aponta sozinho para o `play.html` certo.
-- **Qualquer hospedagem estática** (Netlify, Vercel, etc.): basta subir a pasta.
-- **Teste local na mesma rede**: `pnpm dev` e acesse pelo IP da máquina
-  no celular (`http://SEU_IP:8000`).
+- **Vercel (recomendado)**: conecte o repositório no painel da Vercel. Cada `git push`
+  faz **deploy automático**. É o único que roda o `backend/` (função serverless), então é
+  o necessário para gravar no MongoDB. Configure a variável `MONGO_URI` em
+  *Settings → Environment Variables* (nunca no `.env` público).
+- **GitHub Pages / hospedagem estática**: servem só o `frontend/` (o QR e o quiz funcionam),
+  mas **não** executam o `backend/`, então não gravam no MongoDB.
+- **Teste local na mesma rede**: `pnpm dev` serve o `frontend/` e você acessa pelo IP da
+  máquina no celular (`http://SEU_IP:8000`). Para testar o backend junto: `pnpm dev:api`
+  (usa `vercel dev`).
 
 Abrir direto do arquivo (`file://`) **não** serve para os celulares — use uma das opções acima.
 
 ## Estrutura
 
 ```
-index.html              Tela do professor
-play.html               Tela do aluno (celular)
-assets/
-  css/styles.css        Tema (todas as cores/fontes em variáveis no topo)
-  js/quiz-data.js       As 18 questões, gabaritos, cards de discussão e imagens
-  js/common.js          Constantes + regra de pontuação por velocidade
-  js/host.js            Lógica do professor (sala, respostas, ranking)
-  js/player.js          Lógica do celular
-  js/vendor/            peerjs.min.js e qrcode.min.js (embutidos)
-  img/                  Imagens extraídas do material
+frontend/                 PÚBLICO — servido ao navegador
+  index.html              Tela do professor
+  play.html               Tela do aluno (celular)
+  assets/
+    css/styles.css        Tema (todas as cores/fontes em variáveis no topo)
+    js/quiz-data.js       As 18 questões, gabaritos, cards de discussão e imagens
+    js/common.js          Constantes + regra de pontuação por velocidade
+    js/host.js            Lógica do professor (sala, respostas, ranking, envio ao backend)
+    js/player.js          Lógica do celular
+    js/vendor/            peerjs.min.js e qrcode.min.js (embutidos)
+    img/                  Imagens extraídas do material
+backend/                  PRIVADO — servidor (lê variáveis de ambiente; nunca exposto)
+  api/log.js              Endpoint POST /api/log — grava as interações no MongoDB
+  lib/config.js           Configuração (MONGO_URI etc.) lida SÓ do ambiente
+  lib/db.js               Conexão MongoDB reutilizável
+vercel.json               Roteia estático (frontend) e a função (/api/log → backend)
+.env.example              Modelo do .env (o .env real fica fora do git)
 ```
 
 ## Identidade visual

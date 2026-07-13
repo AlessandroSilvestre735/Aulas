@@ -21,7 +21,24 @@
     // players: Map nameKey -> {name, score, conn, online, answered}
     players: new Map(),
     answers: {}, // nameKey -> {letter, elapsed, points}
+    sessionId: null, // id único da partida (agrupa os registros no MongoDB)
+    startedAt: 0,
   };
+
+  // Endpoint do backend (mesmo domínio; é uma rota, não um segredo).
+  const LOG_ENDPOINT = "/api/log";
+
+  // "Dispara e esquece": registra no servidor sem NUNCA travar o jogo.
+  function logToServer(payload) {
+    try {
+      fetch(LOG_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (e) {}
+  }
 
   /* ----------------------------- Sala / Peer ----------------------------- */
   function newRoomCode() {
@@ -191,6 +208,8 @@
 
   function startGame() {
     H.qIndex = -1;
+    H.sessionId = H.room + "-" + Date.now(); // nova partida
+    H.startedAt = Date.now();
     // zera pontuação para novo jogo
     H.players.forEach((p) => { p.score = 0; p.answered = false; });
     nextQuestion();
@@ -281,6 +300,28 @@
     $("#btn-ranking").style.display = "";
     const nCorr = Object.values(H.answers).filter((a) => a.correct).length;
     $("#answered-count").innerHTML = `<b>${totalAns}</b> respostas · <b>${nCorr}</b> acertos`;
+
+    // Registra as respostas desta questão no MongoDB (via backend).
+    try {
+      const respostas = [];
+      H.players.forEach((p, key) => {
+        const a = H.answers[key];
+        if (a) respostas.push({
+          aluno: p.name, letra: a.letter, acertou: !!a.correct,
+          tempoMs: a.elapsed, pontos: a.points,
+        });
+      });
+      if (H.sessionId && respostas.length) {
+        logToServer({
+          tipo: "respostas",
+          sessionId: H.sessionId,
+          sala: H.room,
+          questao: { index: H.qIndex, n: q.n, tema: q.tema, correta: q.correta },
+          respostas,
+          enviadoEm: Date.now(),
+        });
+      }
+    } catch (e) {}
   }
 
   function sendResultTo(conn, key) {
@@ -368,6 +409,20 @@
     if (H.ecg) H.ecg.set(1);
     const curEl = $("#ecg-cur"); if (curEl) curEl.textContent = String(TOTAL).padStart(2, "0");
     const rows = sortedPlayers();
+
+    // Grava o resumo/ranking final da partida no MongoDB (via backend).
+    try {
+      if (H.sessionId) logToServer({
+        tipo: "sessao",
+        sessionId: H.sessionId,
+        sala: H.room,
+        inicioEm: H.startedAt || null,
+        fimEm: Date.now(),
+        totalQuestoes: TOTAL,
+        ranking: rows.map((r, i) => ({ posicao: i + 1, aluno: r.name, pontos: r.score })),
+      });
+    } catch (e) {}
+
     const top3 = rows.slice(0, 3);
     const order = [1, 0, 2]; // colunas: 2º, 1º, 3º
     const pod = $("#podium"); pod.innerHTML = "";

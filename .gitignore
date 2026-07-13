@@ -12,3 +12,5 @@ pnpm-lock.yaml
 # Config local do Claude Code / editor
 .claude/
 .vscode/
+.env.example
+README.md
