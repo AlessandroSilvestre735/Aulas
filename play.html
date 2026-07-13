@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Entrar no Quiz — CESMAC</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body class="player">
+  <div class="p-wrap">
+    <div class="p-brand"><span class="logo">Q</span> Questões Comentadas</div>
+
+    <!-- ENTRAR -->
+    <section id="p-join" class="screen active">
+      <div class="p-card">
+        <h1>Bora participar! 🎯</h1>
+        <p class="sub" id="p-room-badge">Sala —</p>
+        <form id="p-join-form">
+          <div class="field" id="p-room-field" style="display:none">
+            <label for="p-room">Código da sala</label>
+            <input id="p-room" inputmode="numeric" autocomplete="off" placeholder="Ex.: 4821">
+          </div>
+          <div class="field">
+            <label for="p-name">Seu nome</label>
+            <input id="p-name" autocomplete="off" maxlength="24" placeholder="Como quer aparecer no ranking?">
+          </div>
+          <button type="submit" class="btn block lg">Entrar na sala →</button>
+        </form>
+      </div>
+      <div class="p-foot">Responda rápido para ganhar mais pontos ⚡</div>
+    </section>
+
+    <!-- AGUARDANDO -->
+    <section id="p-wait" class="screen">
+      <div class="p-card">
+        <div class="p-status">
+          <div class="spinner"></div>
+          <div class="big" id="p-wait-big">Conectando…</div>
+          <div class="muted" id="p-wait-muted">Um instante</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUESTÃO -->
+    <section id="p-question" class="screen">
+      <div class="p-me">
+        <div class="name"><span class="av" id="p-me-av">?</span><span id="p-me-name">Aluno</span></div>
+        <div class="sc"><b id="p-me-score">0</b><small>pontos</small></div>
+      </div>
+      <div class="p-qinfo"><span id="p-qn">Questão</span> · <span id="p-qtema"></span></div>
+      <div class="p-timer" id="p-timer"><i></i></div>
+      <div class="p-options" id="p-options"></div>
+    </section>
+
+    <!-- RESULTADO -->
+    <section id="p-result" class="screen">
+      <div class="p-card">
+        <div class="p-result">
+          <div class="emoji" id="p-emoji">🎉</div>
+          <div class="verdict ok" id="p-verdict">Acertou!</div>
+          <div class="muted" id="p-correct"></div>
+          <div class="gain" id="p-gain">+0 pontos</div>
+          <div class="rankline" id="p-rankline"></div>
+        </div>
+      </div>
+      <div class="p-foot">Aguarde a próxima questão na tela do professor 👀</div>
+    </section>
+
+    <!-- FINAL -->
+    <section id="p-final" class="screen">
+      <div class="p-card">
+        <div class="p-result">
+          <div class="av-lg" id="p-final-av" style="width:80px;height:80px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;background:var(--brand-grad);color:#fff;font-weight:900;font-size:30px">?</div>
+          <div class="verdict ok" id="p-final-rank">Fim de jogo</div>
+          <div class="name" id="p-final-name" style="font-weight:800;font-size:18px"></div>
+          <div class="gain" id="p-final-score" style="color:var(--gold)">0 pontos</div>
+          <div class="rankline" id="p-final-msg"></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="assets/js/vendor/peerjs.min.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/player.js"></script>
+</body>
+</html>

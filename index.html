@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Questões Comentadas — CESMAC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <!-- Topbar --------------------------------------------------------- -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="logo">Q</span>
+      <div>
+        <span id="year-title">Questões Comentadas</span>
+        <small id="year-sub">Aula</small>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="pill" id="room-pill">Sala <b>—</b></span>
+      <span class="pill" id="count-pill"><b>0</b> conectados</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- ===================== LOBBY ===================== -->
+    <section id="screen-lobby" class="screen active">
+      <div class="lobby-grid">
+        <div class="hero">
+          <h1>Responda pelo celular e dispute o ranking 🏆</h1>
+          <p class="lead">Quem acerta <b>mais rápido</b> ganha <b>mais pontos</b>. Depois de cada questão, discutimos juntos com os cards e imagens.</p>
+          <ul class="steps">
+            <li><span class="n">1</span><div>Abra a câmera do celular e aponte para o <b>QR code</b> ao lado.</div></li>
+            <li><span class="n">2</span><div>Digite seu <b>nome</b> e toque em entrar.</div></li>
+            <li><span class="n">3</span><div>Seu nome aparece aqui. Quando todos entrarem, começamos!</div></li>
+          </ul>
+
+          <div class="controls">
+            <label class="pill" style="display:flex;align-items:center;gap:8px">
+              ⏱️ Tempo:
+              <select id="time-select" style="background:transparent;border:0;color:var(--text);font-weight:800;font-size:15px">
+                <option value="20">20s</option>
+                <option value="30" selected>30s</option>
+                <option value="45">45s</option>
+                <option value="60">60s</option>
+              </select>
+            </label>
+            <button class="btn ghost" id="btn-copy">📋 Copiar link</button>
+            <button class="btn ghost" id="btn-new-room">↻ Nova sala</button>
+          </div>
+        </div>
+
+        <div class="join-card">
+          <div class="code-label">Entre em</div>
+          <div class="join-url" id="join-url">…</div>
+          <div class="qr" id="qr"></div>
+          <div class="code-label">Código da sala</div>
+          <div class="code" id="room-code">—</div>
+          <div class="conn-status"><span class="dot" id="conn-dot"></span><span id="conn-text">Iniciando…</span></div>
+        </div>
+      </div>
+
+      <div class="players-head">
+        <h2>Alunos na sala</h2>
+      </div>
+      <div class="players" id="players"><span class="empty-hint">Aguardando alunos entrarem…</span></div>
+
+      <div class="controls">
+        <button class="btn lg" id="btn-start" disabled>Iniciar quiz →</button>
+      </div>
+    </section>
+
+    <!-- ===================== QUESTÃO ===================== -->
+    <section id="screen-question" class="screen">
+      <div class="q-head">
+        <span class="q-tag" id="q-tag">Questão</span>
+        <span class="q-tema" id="q-tema"></span>
+        <div class="progress" id="q-progress" style="margin-left:auto"></div>
+      </div>
+      <h2 class="q-title" id="q-title"></h2>
+      <div class="q-img" id="q-img" style="display:none"></div>
+
+      <div class="timer-row">
+        <div class="timer" id="timer" style="flex:1"><i></i></div>
+        <div class="secs" id="secs">30</div>
+        <div class="answered-count" id="answered-count"></div>
+      </div>
+
+      <div class="options" id="options"></div>
+
+      <div class="controls">
+        <button class="btn lg" id="btn-reveal">Revelar resposta ✓</button>
+        <button class="btn lg" id="btn-ranking" style="display:none">Ver ranking 🏆</button>
+      </div>
+    </section>
+
+    <!-- ===================== RANKING ===================== -->
+    <section id="screen-ranking" class="screen">
+      <div class="ranking">
+        <h1>🏆 Ranking</h1>
+        <div id="rank-list"></div>
+        <div class="controls" style="justify-content:center">
+          <button class="btn lg" id="btn-discussion">Discussão da questão →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== DISCUSSÃO ===================== -->
+    <section id="screen-discussion" class="screen">
+      <div class="disc-head">
+        <h1 id="disc-title">Discussão</h1>
+        <div class="progress" id="disc-progress" style="margin-left:auto"></div>
+      </div>
+      <div class="disc-answer" id="disc-answer"></div>
+      <div class="cards" id="cards"></div>
+      <div class="controls">
+        <button class="btn lg" id="btn-next">Próxima questão →</button>
+      </div>
+    </section>
+
+    <!-- ===================== FINAL ===================== -->
+    <section id="screen-final" class="screen">
+      <div class="ranking">
+        <h1>🎉 Resultado Final</h1>
+        <div class="podium" id="podium"></div>
+        <div id="final-list"></div>
+        <div class="controls" style="justify-content:center">
+          <button class="btn ghost" id="btn-again">↻ Jogar novamente</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="assets/js/vendor/peerjs.min.js"></script>
+  <script src="assets/js/vendor/qrcode.min.js"></script>
+  <script src="assets/js/quiz-data.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/host.js"></script>
+</body>
+</html>
