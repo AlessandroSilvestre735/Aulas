@@ -42,7 +42,7 @@ O QR precisa apontar para uma URL que os celulares consigam abrir. Opções:
 - **GitHub Pages**: em *Settings → Pages*, publique a branch. O site fica em
   `https://<usuário>.github.io/<repo>/` e o QR já aponta sozinho para o `play.html` certo.
 - **Qualquer hospedagem estática** (Netlify, Vercel, etc.): basta subir a pasta.
-- **Teste local na mesma rede**: `python3 -m http.server 8000` e acesse pelo IP da máquina
+- **Teste local na mesma rede**: `pnpm dev` e acesse pelo IP da máquina
   no celular (`http://SEU_IP:8000`).
 
 Abrir direto do arquivo (`file://`) **não** serve para os celulares — use uma das opções acima.

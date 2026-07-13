@@ -1,0 +1,11 @@
+{
+  "name": "cesmac-quiz",
+  "private": true,
+  "packageManager": "pnpm@11.12.0",
+  "scripts": {
+    "dev": "serve -l 8000"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}
