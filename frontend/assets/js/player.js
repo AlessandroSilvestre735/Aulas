@@ -35,6 +35,10 @@
     return m ? decodeURIComponent(m[1]) : null;
   }
 
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+
   function setStatus(big, muted) {
     if ($("#p-wait-big")) $("#p-wait-big").textContent = big;
     if ($("#p-wait-muted")) $("#p-wait-muted").textContent = muted || "";
@@ -135,12 +139,19 @@
     $("#p-qtema").textContent = q.tema || "";
     renderMe();
 
-    const letters = q.letters && q.letters.length ? q.letters : ["A", "B", "C", "D"];
+    // Preferimos as alternativas com texto; se não vierem, caímos nas letras.
+    const alts = Array.isArray(q.alternativas) && q.alternativas.length
+      ? q.alternativas
+      : (q.letters && q.letters.length ? q.letters : ["A", "B", "C", "D"]).map((l) => ({ l, t: "" }));
     const box = $("#p-options"); box.innerHTML = "";
-    letters.forEach((l) => {
+    box.classList.toggle("with-text", alts.some((a) => a.t));
+    alts.forEach((a) => {
+      const l = a.l;
       const b = document.createElement("button");
       b.className = "p-opt"; b.dataset.l = l;
-      b.innerHTML = `${l}<span class="lbl">toque para responder</span>`;
+      b.innerHTML = a.t
+        ? `<span class="key">${l}</span><span class="txt">${escapeHtml(a.t)}</span>`
+        : `${l}<span class="lbl">toque para responder</span>`;
       b.addEventListener("click", () => choose(l, b));
       box.appendChild(b);
     });

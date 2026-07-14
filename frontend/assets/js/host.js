@@ -101,9 +101,9 @@
 
   /* --------------------------- Fluxo do jogo --------------------------- */
   function show(screen) {
-    $$(".screen").forEach((s) => s.classList.remove("active"));
+    $$(".screen").forEach((s) => { s.classList.remove("active"); s.style.zoom = ""; });
     $("#screen-" + screen).classList.add("active");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    fitScreen();
   }
 
   async function startGame() {
@@ -136,6 +136,7 @@
         tema: q.tema,
         correta: q.correta,
         letters: q.alternativas.map((a) => a.letra),
+        alternativas: q.alternativas.map((a) => ({ l: a.letra, t: a.texto })),
         time: H.time,
       },
     });
@@ -199,8 +200,12 @@
 
   function renderRankingList() {
     const list = $("#rank-list"); if (!list) return;
-    list.innerHTML = "";
     const rows = (H.standings || []).slice(0, 12);
+    // Evita redesenhar (e re-disparar a animação) a cada poll se nada mudou.
+    const sig = rows.map((r) => r.nome + ":" + r.score + ":" + (r.gain || 0)).join("|");
+    if (sig === H._rankSig) return;
+    H._rankSig = sig;
+    list.innerHTML = "";
     if (!rows.length) { list.innerHTML = `<p class="empty-hint" style="text-align:center">Sem jogadores.</p>`; return; }
     rows.forEach((r, i) => {
       const pos = i + 1;
@@ -238,7 +243,7 @@
       el.className = "card imagem";
       const src = /^https?:/.test(c.img) ? c.img : "assets/img/" + c.img;
       el.innerHTML = `<figure style="margin:0">
-        <img src="${src}" alt="" onerror="var c=this.closest('.card'); if(c)c.style.display='none'">
+        <img src="${src}" alt="" onload="window.__fit&&window.__fit()" onerror="var c=this.closest('.card'); if(c)c.style.display='none';window.__fit&&window.__fit()">
         <figcaption>${escapeHtml(c.caption || "")}</figcaption></figure>`;
       return el;
     }
@@ -323,16 +328,22 @@
     const arr = (H.standings || []).slice();
     $("#count-pill").innerHTML = `<b>${H.online || 0}</b> conectados`;
     if (box) {
-      if (!arr.length) { box.innerHTML = `<span class="empty-hint">Aguardando alunos entrarem…</span>`; }
-      else {
-        box.innerHTML = "";
-        arr.sort((a, b) => Number(b.online) - Number(a.online));
-        arr.forEach((p) => {
-          const c = document.createElement("span");
-          c.className = "chip" + (p.online ? "" : " off");
-          c.innerHTML = `<span class="av">${C.initials(p.nome)}</span>${escapeHtml(p.nome)}`;
-          box.appendChild(c);
-        });
+      arr.sort((a, b) => Number(b.online) - Number(a.online));
+      // Só reconstrói o DOM quando a lista muda de fato — evita o "piscar" a cada poll.
+      const sig = arr.map((p) => p.nome + ":" + (p.online ? 1 : 0)).join("|");
+      if (sig !== H._playersSig) {
+        H._playersSig = sig;
+        if (!arr.length) { box.innerHTML = `<span class="empty-hint">Aguardando alunos entrarem…</span>`; }
+        else {
+          box.innerHTML = "";
+          arr.forEach((p) => {
+            const c = document.createElement("span");
+            c.className = "chip" + (p.online ? "" : " off");
+            c.innerHTML = `<span class="av">${C.initials(p.nome)}</span>${escapeHtml(p.nome)}`;
+            box.appendChild(c);
+          });
+        }
+        fitScreen();
       }
     }
     const startBtn = $("#btn-start");
@@ -349,7 +360,7 @@
     const imgWrap = $("#q-img");
     if (q.imgEnunciado) {
       imgWrap.style.display = "";
-      imgWrap.innerHTML = `<img src="${q.imgEnunciado.src}" alt="" onerror="if(this.parentNode)this.parentNode.style.display='none'">`;
+      imgWrap.innerHTML = `<img src="${q.imgEnunciado.src}" alt="" onload="window.__fit&&window.__fit()" onerror="if(this.parentNode)this.parentNode.style.display='none';window.__fit&&window.__fit()">`;
     } else { imgWrap.style.display = "none"; imgWrap.innerHTML = ""; }
 
     const opts = $("#options"); opts.className = "options"; opts.innerHTML = "";
@@ -366,6 +377,7 @@
     $("#btn-ranking").style.display = "none";
     updateAnsweredCount();
     paintEcg();
+    fitScreen();
   }
 
   function updateAnsweredCount() {
@@ -394,6 +406,39 @@
     if (cur) cur.textContent = H.qIndex < 0 ? "—" : String(H.qIndex + 1).padStart(2, "0");
   }
 
+  /* ---------------------- Tela cheia / auto-ajuste ---------------------- */
+  // Escala a tela ativa para caber na área visível, sem precisar rolar.
+  let fitPending = false;
+  function fitScreen() {
+    if (fitPending) return;
+    fitPending = true;
+    requestAnimationFrame(() => {
+      fitPending = false;
+      const screen = $(".screen.active"); const wrap = $(".wrap");
+      if (!screen || !wrap) return;
+      // zoom (não transform) para o texto crescer NÍTIDO no telão, sem borrar.
+      screen.style.zoom = "1";
+      const availH = wrap.clientHeight;
+      const availW = document.documentElement.clientWidth;
+      const needH = screen.scrollHeight;
+      const needW = screen.scrollWidth;
+      // Preenche a tela: amplia até 2,5× e reduz até 0,4×; limitado por altura E largura.
+      let scale = Math.min(needH > 0 ? availH / needH : 1, needW > 0 ? availW / needW : 1);
+      scale = Math.min(2.5, Math.max(0.4, scale));
+      screen.style.zoom = String(scale);
+    });
+  }
+  window.__fit = fitScreen; // usado por imagens que carregam depois (onload)
+
+  function toggleFullscreen() {
+    const d = document;
+    if (!d.fullscreenElement) {
+      (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen || (() => {})).call(d.documentElement);
+    } else {
+      (d.exitFullscreen || d.webkitExitFullscreen || (() => {})).call(d);
+    }
+  }
+
   /* ------------------------------ Init ------------------------------ */
   function init() {
     $("#year-title").textContent = QUIZ.titulo;
@@ -419,6 +464,11 @@
       navigator.clipboard && navigator.clipboard.writeText(joinURL());
       toast("Link copiado!");
     });
+    const fsBtn = $("#btn-fs");
+    if (fsBtn) fsBtn.addEventListener("click", toggleFullscreen);
+    window.addEventListener("resize", fitScreen);
+    document.addEventListener("fullscreenchange", fitScreen);
+    fitScreen();
   }
 
   function toast(t) {

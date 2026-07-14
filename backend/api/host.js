@@ -130,6 +130,8 @@ async function acao(req, res) {
             tema: Q.str(q.tema, 200),
             correta: Q.str(q.correta, 4),
             letters: (Array.isArray(q.letters) ? q.letters : []).map((l) => Q.str(l, 4)),
+            alternativas: (Array.isArray(q.alternativas) ? q.alternativas : [])
+              .map((a) => ({ l: Q.str(a && a.l, 4), t: Q.str(a && a.t, 400) })),
             time: Q.num(q.time) || Q.DEFAULT_TIME,
             startAt: Date.now(),
           },

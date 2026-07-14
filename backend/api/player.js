@@ -55,6 +55,7 @@ async function estado(req, res) {
       total: room.totalQuestoes,
       tema: q.tema,
       letters: q.letters,
+      alternativas: Array.isArray(q.alternativas) ? q.alternativas : null,
       time: q.time,
       restanteMs: Math.max(0, q.startAt + q.time * 1000 - Date.now()),
     };

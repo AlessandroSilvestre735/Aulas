@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Spline+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/styles.css">
 </head>
-<body>
+<body class="host">
   <img class="watermark" src="assets/img/medcof-watermark.png" alt="" aria-hidden="true">
 
   <!-- Topbar --------------------------------------------------------- -->
@@ -31,6 +31,7 @@
     <div class="meta">
       <span class="pill" id="room-pill">Sala <b>—</b></span>
       <span class="pill" id="count-pill"><b>0</b> conectados</span>
+      <button class="pill btn-fs" id="btn-fs" title="Tela cheia" aria-label="Tela cheia">⛶</button>
     </div>
   </div>
 
@@ -57,6 +58,7 @@
                 <option value="30" selected>30s</option>
                 <option value="45">45s</option>
                 <option value="60">60s</option>
+                <option value="90">90s</option>
               </select>
             </label>
             <button class="btn ghost" id="btn-copy">📋 Copiar link</button>
