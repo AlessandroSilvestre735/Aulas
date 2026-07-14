@@ -239,13 +239,39 @@ b,strong{ color:#fff; font-weight:600; }
 /* =========================== DISCUSSÃO =========================== */
 .disc-head{ display:flex; align-items:baseline; gap:12px; margin-bottom:6px; flex-wrap:wrap; }
 .disc-head h1{ font-family:var(--font-h); font-size:clamp(22px,3vw,34px); margin:0; color:#fff; letter-spacing:-.01em; }
-.disc-answer{ display:inline-flex; align-items:center; gap:10px; margin:14px 0 22px;
+.disc-answer{ display:inline-flex; align-items:center; gap:10px; margin:10px 0 14px;
   padding:10px 18px; border-radius:999px; background:rgba(227,178,91,.12); border:1px solid var(--gold);
   font-family:var(--font-h); font-weight:700; font-size:18px; color:var(--gold); }
 .disc-answer .letter{ width:34px; height:34px; border-radius:9px; background:var(--gold); color:var(--wine-800); display:grid; place-items:center; font-weight:900; }
+#screen-discussion .controls{ margin-top:12px; }
 
-.cards{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; align-items:start; max-width:1120px; margin-inline:auto; }
-@media (max-width:760px){ .cards{ grid-template-columns:1fr; } }
+/* #cards não é mais um grid fixo: o "modo" de layout vem do JS (data-mode/data-imgs).
+   Isso DESACOPLA o tamanho do texto da quantidade de imagens — antes cada imagem ocupava
+   a largura toda e empilhava, fazendo a tela crescer e o auto-ajuste encolher o texto junto. */
+.cards{ display:block; max-width:1240px; margin-inline:auto; }
+
+/* ---- ZONA DE TEXTO: grid compacto de N colunas -> poucas linhas -> pouca altura ---- */
+.disc-text{ display:grid; grid-template-columns:repeat(var(--tcols,2), minmax(0,1fr));
+  gap:14px; align-items:start; align-content:start; }
+@media (max-width:760px){ .disc-text{ grid-template-columns:1fr; } }
+
+/* SÓ TEXTO (Q1,5,6,9,10,11,13,14,16,17): leitura central em 2 colunas, sem galeria vazia */
+.cards[data-mode="text"]{ max-width:1120px; }
+.cards[data-mode="text"] .disc-text{ gap:16px; }
+
+/* SPLIT com 2–3 imagens (Q3,Q4,Q12): texto em cima, FAIXA de imagens lado a lado embaixo */
+.cards[data-mode="split"]{ display:flex; flex-direction:column; gap:16px; }
+.cards[data-mode="split"] .disc-text{ width:100%; }
+
+/* SPLIT com 1 imagem (Q2,7,8,15,18): TEXTO à esquerda, IMAGEM em coluna à direita (rail) —
+   a imagem divide a MESMA faixa vertical do texto, sem somar altura. */
+.cards[data-mode="split"][data-imgs="1"]{ display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:18px; align-items:start; }
+@media (max-width:760px){ .cards[data-mode="split"][data-imgs="1"]{ grid-template-columns:1fr; } }
+.cards[data-mode="split"][data-imgs="1"] .disc-figs{ flex-direction:column; align-items:stretch; }
+.cards[data-mode="split"][data-imgs="1"] .disc-figs .card.imagem{ flex:0 0 auto; }
+.cards[data-mode="split"][data-imgs="1"] .disc-figs .card.imagem img{ max-height:var(--rail-h,360px); }
+
 .card{
   break-inside:avoid; background:var(--glass); -webkit-backdrop-filter:blur(16px) saturate(1.15); backdrop-filter:blur(16px) saturate(1.15);
   border:var(--glass-b); border-radius:var(--radius); padding:16px 18px 16px 20px; margin:0;
@@ -255,17 +281,25 @@ b,strong{ color:#fff; font-weight:600; }
 .card.conceito::after{ background:var(--rose); }
 .card.imagem::after{ display:none; }
 .card.resposta{ border-color:rgba(227,178,91,.5); background:linear-gradient(180deg, rgba(227,178,91,.14), var(--glass)); }
-.card.imagem{ grid-column:1 / -1; padding:16px; text-align:center; background:linear-gradient(160deg, rgba(24,8,7,.7), rgba(8,3,3,.85)); }
-.card.imagem figure{ display:flex; flex-direction:column; align-items:center; }
 .card h3{ font-family:var(--font-h); margin:0 0 8px; font-size:15px; text-transform:uppercase; letter-spacing:.06em;
   color:var(--gold); display:flex; align-items:center; gap:8px; font-weight:700; }
 .card.conceito h3{ color:var(--rose); }
-.card p{ margin:0; line-height:1.5; font-size:15.5px; color:var(--rose-lt); }
-.card ul{ margin:4px 0 0; padding-left:18px; line-height:1.55; font-size:15px; color:var(--rose-lt); }
+.card p{ margin:0; line-height:1.5; font-size:16px; color:var(--rose-lt); }
+.card ul{ margin:4px 0 0; padding-left:18px; line-height:1.55; font-size:15.5px; color:var(--rose-lt); }
 .card ul li{ margin-bottom:4px; }
 .card ul li::marker{ color:var(--gold); }
-.card.imagem img{ width:100%; max-width:860px; height:auto; max-height:72vh; object-fit:contain; border-radius:10px; background:var(--cream); padding:8px; border:1px solid rgba(255,255,255,.14); }
-.card.imagem figcaption{ margin-top:8px; font-size:13px; color:var(--rose-mid); line-height:1.4; }
+
+/* ---- FAIXA/RAIL DE IMAGENS: teto de ALTURA (--fig-h/--rail-h, definidos no fitScreen a partir
+   da altura REAL disponível). Assim a faixa nunca cresce em altura, só reparte a largura —
+   e width/height:auto garantem que imagens pequenas NUNCA sejam ampliadas (evita borrão). */
+.disc-figs{ display:flex; gap:14px; align-items:flex-start; justify-content:center; width:100%; }
+.card.imagem{ background:linear-gradient(160deg, rgba(24,8,7,.7), rgba(8,3,3,.85)); }
+.disc-figs .card.imagem{ flex:1 1 0; min-width:0; margin:0; padding:12px;
+  display:flex; flex-direction:column; align-items:center; }
+.card.imagem figure{ display:flex; flex-direction:column; align-items:center; margin:0; }
+.disc-figs .card.imagem img{ width:auto; max-width:100%; height:auto; max-height:var(--fig-h,240px);
+  object-fit:contain; background:var(--cream); padding:6px; border-radius:10px; border:1px solid rgba(255,255,255,.14); }
+.card.imagem figcaption{ margin-top:6px; font-size:12.5px; line-height:1.35; color:var(--rose-mid); text-align:center; }
 
 /* Dots de progresso (opcional) */
 .progress{ display:flex; gap:6px; flex-wrap:wrap; }

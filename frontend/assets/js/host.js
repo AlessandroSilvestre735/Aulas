@@ -230,8 +230,37 @@
     $("#disc-answer").innerHTML = `<span class="letter">${q.correta}</span> Resposta correta`;
     renderProgress($("#disc-progress"));
 
+    // Separa os cards em TEXTO e IMAGEM e escolhe o modo de layout. As imagens deixam de
+    // ocupar a largura toda e empilhar (o que fazia o texto encolher no auto-ajuste):
+    //  - "text"  : só texto, grid central de 2 colunas (como antes);
+    //  - "split" : texto + imagens. 1 imagem vira "rail" (texto à esquerda, imagem à direita);
+    //              2–3 imagens viram uma FAIXA lado a lado embaixo, com teto de altura.
     const wrap = $("#cards"); wrap.innerHTML = "";
-    q.cards.forEach((c) => wrap.appendChild(renderCard(c)));
+    const texts = q.cards.filter((c) => c.tipo !== "imagem");
+    const imgs  = q.cards.filter((c) => c.tipo === "imagem");
+
+    const mode = imgs.length ? (texts.length ? "split" : "img") : "text";
+    wrap.dataset.mode = mode;
+    wrap.dataset.imgs = String(imgs.length);
+
+    // Colunas de texto: manter poucas linhas (baixa altura => o auto-ajuste mantém o zoom alto).
+    // Uma lista longa (<ul> com muitos itens) fica alta: nesse caso limita a 2 colunas.
+    const hasLongList = texts.some((c) => c.itens && c.itens.length >= 5);
+    let tcols;
+    if (mode !== "split" || imgs.length === 1) tcols = Math.min(2, texts.length || 1);
+    else tcols = hasLongList ? 2 : Math.min(3, Math.max(2, texts.length));
+    wrap.style.setProperty("--tcols", tcols);
+
+    if (texts.length) {
+      const t = document.createElement("div"); t.className = "disc-text";
+      texts.forEach((c) => t.appendChild(renderCard(c)));
+      wrap.appendChild(t);
+    }
+    if (imgs.length) {
+      const f = document.createElement("div"); f.className = "disc-figs";
+      imgs.forEach((c) => f.appendChild(renderCard(c))); // .card.imagem chama __fit no onload
+      wrap.appendChild(f);
+    }
 
     $("#btn-next").textContent = H.qIndex >= TOTAL - 1 ? "Ver resultado final →" : "Próxima questão →";
     show("discussion");
@@ -423,6 +452,16 @@
       const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
       const availH = wrap.clientHeight - padY - 2; // -2px de folga contra arredondamento
       const availW = document.documentElement.clientWidth;
+      // Discussão: limita a faixa/rail de imagens a uma fração da altura REAL disponível.
+      // Como deriva de availH (e não do zoom), as imagens nunca fazem a tela crescer nem o
+      // texto encolher junto. null-guarded => não afeta lobby/questão/ranking/final.
+      const dcards = screen.querySelector(".cards[data-mode]");
+      if (dcards) {
+        const strip = Math.max(180, Math.min(300, Math.round(availH * 0.34)));
+        const rail  = Math.max(240, Math.min(380, Math.round(availH * 0.56)));
+        dcards.style.setProperty("--fig-h", strip + "px");
+        dcards.style.setProperty("--rail-h", rail + "px");
+      }
       const needH = screen.scrollHeight;
       const needW = screen.scrollWidth;
       // Preenche a tela: amplia até 2,5× e reduz até 0,25×; limitado por altura E largura.
