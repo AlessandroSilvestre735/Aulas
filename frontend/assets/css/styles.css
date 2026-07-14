@@ -238,18 +238,19 @@ b,strong{ color:#fff; font-weight:600; }
   font-family:var(--font-h); font-weight:700; font-size:18px; color:var(--gold); }
 .disc-answer .letter{ width:34px; height:34px; border-radius:9px; background:var(--gold); color:var(--wine-800); display:grid; place-items:center; font-weight:900; }
 
-.cards{ columns:3 300px; column-gap:16px; }
-@media (max-width:900px){ .cards{ columns:1; } }
+.cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px; align-items:start; }
+@media (max-width:900px){ .cards{ grid-template-columns:1fr; } }
 .card{
   break-inside:avoid; background:var(--glass); -webkit-backdrop-filter:blur(16px) saturate(1.15); backdrop-filter:blur(16px) saturate(1.15);
-  border:var(--glass-b); border-radius:var(--radius); padding:16px 18px 16px 20px; margin:0 0 16px;
+  border:var(--glass-b); border-radius:var(--radius); padding:16px 18px 16px 20px; margin:0;
   box-shadow:var(--glass-s); position:relative; overflow:hidden;
 }
 .card::after{ content:""; position:absolute; left:0; top:20px; bottom:20px; width:3px; border-radius:0 3px 3px 0; background:var(--gold); }
 .card.conceito::after{ background:var(--rose); }
 .card.imagem::after{ display:none; }
 .card.resposta{ border-color:rgba(227,178,91,.5); background:linear-gradient(180deg, rgba(227,178,91,.14), var(--glass)); }
-.card.imagem{ padding:12px; text-align:center; background:linear-gradient(160deg, rgba(24,8,7,.7), rgba(8,3,3,.85)); }
+.card.imagem{ grid-column:1 / -1; padding:16px; text-align:center; background:linear-gradient(160deg, rgba(24,8,7,.7), rgba(8,3,3,.85)); }
+.card.imagem figure{ display:flex; flex-direction:column; align-items:center; }
 .card h3{ font-family:var(--font-h); margin:0 0 8px; font-size:15px; text-transform:uppercase; letter-spacing:.06em;
   color:var(--gold); display:flex; align-items:center; gap:8px; font-weight:700; }
 .card.conceito h3{ color:var(--rose); }
@@ -257,7 +258,7 @@ b,strong{ color:#fff; font-weight:600; }
 .card ul{ margin:4px 0 0; padding-left:18px; line-height:1.55; font-size:15px; color:var(--rose-lt); }
 .card ul li{ margin-bottom:4px; }
 .card ul li::marker{ color:var(--gold); }
-.card.imagem img{ border-radius:10px; background:var(--cream); padding:6px; border:1px solid rgba(255,255,255,.14); }
+.card.imagem img{ width:100%; max-width:860px; height:auto; max-height:72vh; object-fit:contain; border-radius:10px; background:var(--cream); padding:8px; border:1px solid rgba(255,255,255,.14); }
 .card.imagem figcaption{ margin-top:8px; font-size:13px; color:var(--rose-mid); line-height:1.4; }
 
 /* Dots de progresso (opcional) */
