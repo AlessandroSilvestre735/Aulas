@@ -27,6 +27,9 @@
     standings: [],   // [{nome, score, gain, online}]
     online: 0,
     respondidos: 0,
+    // figuras em slide dedicado (tela cheia) da questão atual:
+    figures: [],
+    figIndex: 0,
   };
 
   /* ----------------------------- Sala ----------------------------- */
@@ -235,9 +238,14 @@
     //  - "text"  : só texto, grid central de 2 colunas (como antes);
     //  - "split" : texto + imagens. 1 imagem vira "rail" (texto à esquerda, imagem à direita);
     //              2–3 imagens viram uma FAIXA lado a lado embaixo, com teto de altura.
+    // Figuras marcadas com full:true viram slides dedicados (tela cheia), mostrados
+    // DEPOIS da discussão. As demais imagens entram na faixa/rail normal.
+    H.figures = q.cards.filter((c) => c.tipo === "imagem" && c.full);
+    H.figIndex = 0;
+
     const wrap = $("#cards"); wrap.innerHTML = "";
     const texts = q.cards.filter((c) => c.tipo !== "imagem");
-    const imgs  = q.cards.filter((c) => c.tipo === "imagem");
+    const imgs  = q.cards.filter((c) => c.tipo === "imagem" && !c.full);
 
     const mode = imgs.length ? (texts.length ? "split" : "img") : "text";
     wrap.dataset.mode = mode;
@@ -262,8 +270,36 @@
       wrap.appendChild(f);
     }
 
-    $("#btn-next").textContent = H.qIndex >= TOTAL - 1 ? "Ver resultado final →" : "Próxima questão →";
+    $("#btn-next").textContent = H.figures.length
+      ? "Ver figura →"
+      : (H.qIndex >= TOTAL - 1 ? "Ver resultado final →" : "Próxima questão →");
     show("discussion");
+  }
+
+  // "Próxima" da discussão: se houver figuras dedicadas, mostra-as antes de avançar.
+  function discussionNext() {
+    if (H.figures && H.figures.length) { H.figIndex = 0; showFigure(); }
+    else nextQuestion();
+  }
+
+  function showFigure() {
+    H.phase = "figure";
+    const q = QUIZ.questoes[H.qIndex];
+    const fig = H.figures[H.figIndex];
+    $("#fig-title").textContent = `Questão ${q.n} — ${q.tema}`;
+    const src = /^https?:/.test(fig.img) ? fig.img : "assets/img/" + fig.img;
+    $("#fig-wrap").innerHTML = `<img src="${src}" alt="" onload="window.__fit&&window.__fit()" onerror="if(this.parentNode)this.parentNode.style.display='none';window.__fit&&window.__fit()">`;
+    $("#fig-cap").textContent = fig.caption || "";
+    const last = H.figIndex >= H.figures.length - 1;
+    $("#btn-fig-next").textContent = last
+      ? (H.qIndex >= TOTAL - 1 ? "Ver resultado final →" : "Próxima questão →")
+      : "Próxima figura →";
+    show("figure");
+  }
+
+  function figureNext() {
+    if (H.figIndex < H.figures.length - 1) { H.figIndex++; showFigure(); }
+    else nextQuestion();
   }
 
   function renderCard(c) {
@@ -493,7 +529,8 @@
     $("#btn-reveal").addEventListener("click", revealAnswer);
     $("#btn-ranking").addEventListener("click", showRanking);
     $("#btn-discussion").addEventListener("click", showDiscussion);
-    $("#btn-next").addEventListener("click", nextQuestion);
+    $("#btn-next").addEventListener("click", discussionNext);
+    $("#btn-fig-next").addEventListener("click", figureNext);
     // "Jogar novamente" volta ao lobby: lá o tempo pode ser reajustado antes de recomeçar.
     $("#btn-again").addEventListener("click", backToLobby);
     $("#btn-new-room").addEventListener("click", () => {

@@ -301,6 +301,13 @@ b,strong{ color:#fff; font-weight:600; }
   object-fit:contain; background:var(--cream); padding:6px; border-radius:10px; border:1px solid rgba(255,255,255,.14); }
 .card.imagem figcaption{ margin-top:6px; font-size:12.5px; line-height:1.35; color:var(--rose-mid); text-align:center; }
 
+/* =========================== FIGURA (slide dedicado) =========================== */
+.fig-head h1{ font-family:var(--font-h); font-size:clamp(20px,2.6vw,30px); margin:0 0 12px; color:#fff; letter-spacing:-.01em; }
+.fig-wrap{ display:flex; align-items:center; justify-content:center; }
+.fig-wrap img{ width:auto; max-width:100%; max-height:74vh; object-fit:contain; border-radius:12px;
+  background:var(--cream); padding:10px; border:var(--glass-b); box-shadow:var(--glass-s); }
+.fig-cap{ margin-top:12px; text-align:center; color:var(--rose-mid); font-size:15px; line-height:1.4; }
+
 /* Dots de progresso (opcional) */
 .progress{ display:flex; gap:6px; flex-wrap:wrap; }
 .progress i{ width:9px; height:9px; border-radius:50%; background:rgba(224,165,156,.25); }

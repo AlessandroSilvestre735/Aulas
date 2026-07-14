@@ -162,7 +162,9 @@ window.QUIZ = {
         { tipo: "conceito", titulo: "Compensação (Winter)", texto: "PaCO₂ esperada = (13 × 1,5) + 8 = 27,5 ± 2. Como a PaCO₂ medida é 42 (maior que a esperada), há acidose respiratória associada → distúrbio misto." },
         { tipo: "imagem", img: "image7.png", caption: "Cálculo do Ânion Gap: AG = Na⁺ − (HCO₃⁻ + Cl⁻)" },
         { tipo: "conceito", titulo: "Ânion Gap", texto: "AG = 135 − (13 + 95) = 27. AG > 12 = aumentado. Conclusão: acidose metabólica com AG aumentado + acidose respiratória." },
-        { tipo: "conceito", titulo: "Roteiro da gasometria", texto: "Checar pH → metabólica ou respiratória → verificar se está compensado → calcular o AG (se acidose metabólica)." }
+        { tipo: "conceito", titulo: "Roteiro da gasometria", texto: "Checar pH → metabólica ou respiratória → verificar se está compensado → calcular o AG (se acidose metabólica)." },
+        // Slide dedicado (tela cheia): fluxograma de abordagem da acidose metabólica.
+        { tipo: "imagem", full: true, img: "image14.png", caption: "Abordagem da acidose metabólica — fluxograma (Acervo MedCof Anest.)" }
       ]
     },
     /* ============================ QUESTÃO 8 ============================ */
