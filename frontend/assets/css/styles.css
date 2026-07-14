@@ -244,8 +244,8 @@ b,strong{ color:#fff; font-weight:600; }
   font-family:var(--font-h); font-weight:700; font-size:18px; color:var(--gold); }
 .disc-answer .letter{ width:34px; height:34px; border-radius:9px; background:var(--gold); color:var(--wine-800); display:grid; place-items:center; font-weight:900; }
 
-.cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px; align-items:start; }
-@media (max-width:900px){ .cards{ grid-template-columns:1fr; } }
+.cards{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; align-items:start; max-width:1120px; margin-inline:auto; }
+@media (max-width:760px){ .cards{ grid-template-columns:1fr; } }
 .card{
   break-inside:avoid; background:var(--glass); -webkit-backdrop-filter:blur(16px) saturate(1.15); backdrop-filter:blur(16px) saturate(1.15);
   border:var(--glass-b); border-radius:var(--radius); padding:16px 18px 16px 20px; margin:0;

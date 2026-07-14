@@ -418,13 +418,16 @@
       if (!screen || !wrap) return;
       // zoom (não transform) para o texto crescer NÍTIDO no telão, sem borrar.
       screen.style.zoom = "1";
-      const availH = wrap.clientHeight;
+      // Espaço REAL disponível = área do wrap MENOS o padding dele (senão a base corta).
+      const cs = getComputedStyle(wrap);
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const availH = wrap.clientHeight - padY - 2; // -2px de folga contra arredondamento
       const availW = document.documentElement.clientWidth;
       const needH = screen.scrollHeight;
       const needW = screen.scrollWidth;
-      // Preenche a tela: amplia até 2,5× e reduz até 0,4×; limitado por altura E largura.
+      // Preenche a tela: amplia até 2,5× e reduz até 0,25×; limitado por altura E largura.
       let scale = Math.min(needH > 0 ? availH / needH : 1, needW > 0 ? availW / needW : 1);
-      scale = Math.min(2.5, Math.max(0.4, scale));
+      scale = Math.min(2.5, Math.max(0.25, scale));
       screen.style.zoom = String(scale);
     });
   }
