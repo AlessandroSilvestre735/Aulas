@@ -302,6 +302,37 @@
     else nextQuestion();
   }
 
+  /* -------------------- Passador de slides / teclado -------------------- */
+  // Um passador (apresentador) manda as teclas de "avançar" (→ / PageDown) e
+  // "voltar" (← / PageUp). Aqui "avançar" dispara a ação PRINCIPAL da fase
+  // atual — o mesmo que clicar no botão em destaque da tela.
+  function advance() {
+    switch (H.phase) {
+      case "lobby": {
+        const b = $("#btn-start");
+        if (b && !b.disabled) startGame(); // só começa se houver alunos
+        break;
+      }
+      case "question":   revealAnswer();   break;
+      case "reveal":     showRanking();     break;
+      case "ranking":    showDiscussion();  break;
+      case "discussion": discussionNext();  break;
+      case "figure":     figureNext();      break;
+      case "final":      backToLobby();      break; // recomeça: volta ao lobby
+      // "reveal" e demais fases sem ação => nada acontece
+    }
+  }
+
+  function onKey(e) {
+    // Não sequestra o teclado enquanto o foco está num campo (ex.: seletor de tempo).
+    const t = e.target;
+    if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    const k = e.key;
+    if (k === "ArrowRight" || k === "PageDown") { e.preventDefault(); advance(); }
+    // ← / PageUp (botão "voltar" do passador) são ignorados de propósito: o
+    // jogo só avança (revelar/ranking dependem do estado no servidor).
+  }
+
   function renderCard(c) {
     const el = document.createElement("div");
     if (c.tipo === "imagem") {
