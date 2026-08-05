@@ -80,6 +80,20 @@ window.QUIZ = {
       ],
       correta: "B",
       cards: []
+    },
+    /* ============================ QUESTÃO 6 ============================ */
+    {
+      n: 6,
+      tema: "Via aérea difícil — Bougie",
+      enunciado: "Durante o atendimento de um paciente traumatizado, o médico responsável pela via aérea percebe que deverá garantir uma via aérea definitiva. Na avaliação de via aérea, notou-se: sem alterações cervicais externas; regra 3-3-2 com menos de 3 dedos entre o osso hióide e a ponta do queixo; Mallampati 4; sem traumas cervicais; paciente com colar cervical que não permitia a avaliação de mobilidade cervical. O emergencista optou pela intubação orotraqueal, sem sucesso. Como o paciente já apresentava preditores de via aérea difícil, o emergencista deixou ao seu lado um Bougie. O principal sinal que o médico deve atentar ao uso deste dispositivo para realizar a intubação orotraqueal será:",
+      alternativas: [
+        { letra: "A", texto: "A visualização direta das cordas vocais." },
+        { letra: "B", texto: "Sentir os \"Clicks\" dos anéis traqueais." },
+        { letra: "C", texto: "A ausculta pulmonar." },
+        { letra: "D", texto: "O estiramento das cordas vocais." }
+      ],
+      correta: "B",
+      cards: []
     }
   ]
 };
