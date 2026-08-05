@@ -326,8 +326,20 @@
         <div class="score">${r.score}</div>`;
       list.appendChild(row);
     });
+    const q = QUIZ.questoes[H.qIndex];
+    const hasCards = q.cards && q.cards.length;
+    $("#btn-discussion").textContent = hasCards
+      ? "Discussão da questão →"
+      : (H.qIndex >= TOTAL - 1 ? "Ver resultado final →" : "Próxima questão →");
     broadcast({ type: "standings" });
     show("ranking");
+  }
+
+  // Após o ranking: vai para a discussão (se houver cards) ou direto para a próxima.
+  function onRankingNext() {
+    const q = QUIZ.questoes[H.qIndex];
+    if (q.cards && q.cards.length) showDiscussion();
+    else nextQuestion();
   }
 
   function showDiscussion() {
@@ -492,7 +504,7 @@
     $("#btn-start").addEventListener("click", startGame);
     $("#btn-reveal").addEventListener("click", revealAnswer);
     $("#btn-ranking").addEventListener("click", showRanking);
-    $("#btn-discussion").addEventListener("click", showDiscussion);
+    $("#btn-discussion").addEventListener("click", onRankingNext);
     $("#btn-next").addEventListener("click", nextQuestion);
     $("#btn-again").addEventListener("click", () => { startGame(); });
     $("#btn-new-room").addEventListener("click", () => {
