@@ -2,7 +2,7 @@
    COMMON — constantes e utilidades compartilhadas entre host e player.
    ===================================================================== */
 window.QZ = (function () {
-  const PREFIX = "cesmacquiz-";          // prefixo do ID no broker PeerJS
+  const PREFIX = "quiz-";                 // (legado) prefixo de ID — não usado na versão com backend
   const DEFAULT_TIME = 30;               // segundos por questão (padrão)
   const MAX_POINTS = 1000;               // acerto instantâneo
   const MIN_POINTS = 500;                // acerto no limite do tempo
@@ -27,7 +27,8 @@ window.QZ = (function () {
     return String(n || "").trim().replace(/\s+/g, " ").toLowerCase();
   }
 
-  // Config PeerJS (usa o broker público gratuito 0.peerjs.com por padrão).
+  // Config (legado PeerJS) — mantido apenas por compatibilidade; a versão
+  // atual coordena a partida pelo backend (/api/host, /api/player).
   const PEER_CONFIG = {
     debug: 1,
     config: {
